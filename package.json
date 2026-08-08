@@ -1,0 +1,34 @@
+{
+  "name": "construction-erp",
+  "version": "1.0.0",
+  "description": "Complete Construction ERP System",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:backend": "cd apps/backend && npm run dev",
+    "dev:web": "cd apps/web && npm run dev",
+    "dev:mobile": "cd apps/mobile && npx expo start",
+    "build:backend": "cd apps/backend && npm run build",
+    "build:web": "cd apps/web && npm run build",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:build": "docker-compose build",
+    "db:migrate": "cd apps/backend && npx prisma migrate deploy",
+    "db:seed": "cd apps/backend && npx prisma db seed",
+    "db:studio": "cd apps/backend && npx prisma studio",
+    "install:all": "npm install && cd apps/backend && npm install && cd ../web && npm install && cd ../mobile && npm install"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
+  "dependencies": {
+    "multer": "^2.2.0"
+  },
+  "devDependencies": {
+    "@types/multer": "^2.2.0"
+  }
+}

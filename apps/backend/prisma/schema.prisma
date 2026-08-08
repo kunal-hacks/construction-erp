@@ -1,0 +1,748 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+model Attendance {
+  id           String      @id
+  date         DateTime
+  present      Boolean     @default(true)
+  hoursWorked  Float       @default(8)
+  overtime     Float       @default(0)
+  notes        String?
+  workerId     String?
+  contractorId String?
+  projectId    String?     // NEW — which project this day's work was for
+  wageForDay   Float?      // NEW — what they're owed for this day
+  Contractor   Contractor? @relation(fields: [contractorId], references: [id])
+  Worker       Worker?     @relation(fields: [workerId], references: [id])
+  Project      Project?    @relation(fields: [projectId], references: [id])
+}
+
+model AuditLog {
+  id         String   @id
+  action     String
+  module     String
+  entityId   String?
+  entityType String?
+  oldValues  Json?
+  newValues  Json?
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+  userId     String
+  User       User     @relation(fields: [userId], references: [id])
+}
+
+model Contractor {
+  id         String       @id
+  name       String
+  company    String?
+  phone      String
+  email      String?
+  gstNumber  String?
+  specialty  String?
+  ratePerDay Float?
+  isActive   Boolean      @default(true)
+  createdAt  DateTime     @default(now())
+  Attendance Attendance[]
+  Worker    Worker[] 
+}
+
+model DailyReport {
+  id          String        @id
+  reportDate  DateTime
+  weather     String
+  temperature Float?
+  summary     String
+  workDone    String
+  issuesFound String?
+  safetyNotes String?
+  labourCount Int           @default(0)
+  progress    Float?
+  imageUrls   String[]
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime
+  projectId   String
+  userId      String
+  Project     Project       @relation(fields: [projectId], references: [id])
+  User        User          @relation(fields: [userId], references: [id])
+  LabourEntry LabourEntry[]
+  taskId String?
+  Task   Task? @relation(fields: [taskId], references: [id])
+
+  DailyReportWorker   DailyReportWorker[]
+  DailyReportMaterial DailyReportMaterial[]
+}
+
+model DailyReportWorker {
+  id           String      @id @default(uuid())
+  reportId     String
+  name         String
+  workerId     String?
+  role         String
+  wageForDay   Float
+  createdAt    DateTime    @default(now())
+  DailyReport  DailyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  Worker       Worker?     @relation(fields: [workerId], references: [id])
+}
+
+model DailyReportMaterial {
+  id           String      @id @default(uuid())
+  reportId     String
+  materialId   String
+  quantityUsed Float
+  DailyReport  DailyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  Material     Material    @relation(fields: [materialId], references: [id])
+}
+
+model Document {
+  id          String   @id
+  name        String
+  fileUrl     String
+  fileType    String
+  fileSize    Int
+  category    String
+  description String?
+  createdAt   DateTime @default(now())
+  projectId   String?
+  uploadedBy  String
+  Project     Project? @relation(fields: [projectId], references: [id])
+  User        User     @relation(fields: [uploadedBy], references: [id])
+}
+
+model Expense {
+  id             String        @id
+  title          String
+  description    String?
+  amount         Float
+  category       String
+  status         ExpenseStatus @default(PENDING)
+  receiptUrl     String?
+  vendorName     String?
+  invoiceNo      String?
+  expenseDate    DateTime      @default(now())
+  approvedAt     DateTime?
+  approvedBy     String?
+  rejectedReason String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime
+  projectId      String
+  userId         String
+  Project        Project       @relation(fields: [projectId], references: [id])
+  User           User          @relation(fields: [userId], references: [id])
+}
+
+model CorrectionRequest {
+  id              String   @id @default(uuid())
+  entityType      String   // "Expense" | "TruckEntry" | etc. — generic, not tied to one table
+  entityId        String
+  requestedBy     String   // the PM
+  currentValue    Json     // snapshot of what's wrong
+  proposedValue   Json     // what it should be
+  reason          String
+  status          String   @default("PENDING") // PENDING | APPROVED | REJECTED
+  reviewedBy      String?  // Admin, only role that can act on this
+  reviewedAt      DateTime?
+  adjustingExpenseId String? // if approved and it results in a new linked Expense entry
+  createdAt       DateTime @default(now())
+}
+
+model InventoryItem {
+  id            String          @id
+  quantity      Float
+  minStock      Float           @default(0)
+  unitPrice     Float
+  location      String?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime
+  projectId     String
+  materialId    String
+  Material      Material        @relation(fields: [materialId], references: [id])
+  Project       Project         @relation(fields: [projectId], references: [id])
+  StockMovement StockMovement[]
+
+  @@unique([projectId, materialId])
+}
+
+model LabourEntry {
+  id              String      @id
+  reportId        String
+  labourType      LabourType
+  count           Int
+  hoursWorked     Float
+  workDescription String?
+  DailyReport     DailyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+}
+
+model Machinery {
+  id               String             @id
+  name             String
+  type             String
+  make             String?
+  model            String?
+  regNumber        String?
+  status           MachineryStatus    @default(ACTIVE)
+  purchaseDate     DateTime?
+  purchasePrice    Float?
+  hourlyRate       Float?
+  notes            String?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime
+  MachineryLog     MachineryLog[]
+  ProjectMachinery ProjectMachinery[]
+}
+
+model MachineryLog {
+  id            String    @id
+  logDate       DateTime
+  hoursUsed     Float
+  fuelUsed      Float?
+  operatorName  String?
+  clockInTime   DateTime?
+  clockOutTime  DateTime?
+  workDone      String?
+  notes         String?
+  hourlyRate    Float?
+  totalCost     Float?
+  createdAt     DateTime  @default(now())
+  machineryId   String?      // now optional — fleet lookup no longer required
+  machineryName String?      // NEW — free-text name entered directly at log time
+  projectId     String?
+  Machinery     Machinery? @relation(fields: [machineryId], references: [id])   // now optional
+  Project       Project?   @relation(fields: [projectId], references: [id])
+}
+
+model CostTransfer {
+  id         String   @id @default(uuid())
+  projectId  String
+  module     String   // 'truck-entries' | 'machinery' | 'salary'
+  workerId   String?  // set when paying a permanent Worker
+  workerName String?  // NEW — set when paying a temp/non-permanent worker (no Worker row exists)
+  amount     Float
+  expenseId  String
+  createdBy  String
+  createdAt  DateTime @default(now())
+  Project    Project  @relation(fields: [projectId], references: [id])
+  Worker     Worker?  @relation(fields: [workerId], references: [id])
+
+  @@index([projectId, module])
+  @@index([workerId, module])
+  @@index([workerName, module])
+}
+
+model WorkerProject {
+  id        String  @id @default(uuid())
+  workerId  String
+  projectId String
+  Worker    Worker  @relation(fields: [workerId], references: [id])
+  Project   Project @relation(fields: [projectId], references: [id])
+
+  @@unique([workerId, projectId])
+}
+
+model Material {
+  id            String          @id
+  name          String
+  unit          String
+  category      String
+  description   String?
+  createdAt     DateTime        @default(now())
+  InventoryItem InventoryItem[]
+  POItem        POItem[]
+  QuotationItem QuotationItem[]
+  MaterialCoefficient  MaterialCoefficient[]
+  TaskDailyLogMaterial TaskDailyLogMaterial[]
+  DailyReportMaterial DailyReportMaterial[]
+}
+
+model Notification {
+  id        String   @id
+  title     String
+  message   String
+  type      String
+  isRead    Boolean  @default(false)
+  link      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime? @updatedAt
+  userId    String
+  User      User     @relation(fields: [userId], references: [id])
+}
+
+model POItem {
+  id            String        @id
+  quantity      Float
+  unitPrice     Float
+  totalPrice    Float
+  receivedQty   Float         @default(0)
+  notes         String?
+  poId          String
+  materialId    String
+  Material      Material      @relation(fields: [materialId], references: [id])
+  PurchaseOrder PurchaseOrder @relation(fields: [poId], references: [id], onDelete: Cascade)
+}
+
+model Project {
+  id               String             @id
+  name             String
+  description      String?
+  clientName       String
+  clientEmail      String?
+  clientPhone      String?
+  status           ProjectStatus      @default(PLANNING)
+  budget           String
+  startDate        DateTime
+  endDate          DateTime?
+  location         String?
+  projectCode      String             @unique
+  progress         Float              @default(0)
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime
+  DailyReport      DailyReport[]
+  Document         Document[]
+  Expense          Expense[]
+  InventoryItem    InventoryItem[]
+  ProjectMachinery ProjectMachinery[]
+  ProjectMember    ProjectMember[]
+  PurchaseOrder    PurchaseOrder[]
+  Quotation        Quotation[]
+  Salary           Salary[]
+  Task             Task[]
+  MachineryLog     MachineryLog[]
+  CostTransfer     CostTransfer[]
+  TruckEntry       TruckEntry[]
+  Worker           Worker[]
+  Upload           Upload[]
+  Attendance       Attendance[]
+  WorkerProject    WorkerProject[]
+}
+
+model ProjectMachinery {
+  id          String    @id
+  startDate   DateTime
+  endDate     DateTime?
+  notes       String?
+  projectId   String
+  machineryId String
+  Machinery   Machinery @relation(fields: [machineryId], references: [id])
+  Project     Project   @relation(fields: [projectId], references: [id])
+}
+
+model ProjectMember {
+  id        String   @id
+  projectId String
+  userId    String
+  role      String
+  joinedAt  DateTime @default(now())
+  Project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  User      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+}
+
+model PurchaseOrder {
+  id           String    @id
+  poNumber     String    @unique
+  status       POStatus  @default(DRAFT)
+  totalAmount  Float
+  notes        String?
+  deliveryDate DateTime?
+  receivedAt   DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime
+  projectId    String
+  vendorId     String
+  POItem       POItem[]
+  Project      Project   @relation(fields: [projectId], references: [id])
+  Vendor       Vendor    @relation(fields: [vendorId], references: [id])
+}
+
+model Quotation {
+  id            String          @id
+  quotationNo   String          @unique
+  status        QuotationStatus @default(DRAFT)
+  validUntil    DateTime?
+  totalAmount   Float
+  notes         String?
+  terms         String?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime
+  projectId     String
+  vendorId      String
+  Project       Project         @relation(fields: [projectId], references: [id])
+  Vendor        Vendor          @relation(fields: [vendorId], references: [id])
+  QuotationItem QuotationItem[]
+}
+
+model QuotationItem {
+  id          String    @id
+  quantity    Float
+  unitPrice   Float
+  totalPrice  Float
+  notes       String?
+  quotationId String
+  materialId  String
+  Material    Material  @relation(fields: [materialId], references: [id])
+  Quotation   Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+}
+
+model Salary {
+  id          String       @id
+  month       Int
+  year        Int
+  basicSalary Float
+  overtime    Float        @default(0)
+  deductions  Float        @default(0)
+  netSalary   Float
+  status      SalaryStatus @default(PENDING)
+  paidAt      DateTime?
+  notes       String?
+  createdAt   DateTime     @default(now())
+  userId      String?
+  workerId    String?
+  projectId   String?
+  Project     Project?     @relation(fields: [projectId], references: [id])
+  User        User?        @relation(fields: [userId], references: [id])
+  Worker      Worker?      @relation(fields: [workerId], references: [id])
+}
+
+model StockMovement {
+  id              String        @id
+  movementType    MovementType
+  quantity        Float
+  unitPrice       Float?
+  reference       String?
+  notes           String?
+  movedAt         DateTime      @default(now())
+  inventoryItemId String
+  InventoryItem   InventoryItem @relation(fields: [inventoryItemId], references: [id])
+}
+
+model Task {
+  id          String        @id
+  title       String
+  description String?
+  status      TaskStatus    @default(TODO)
+  priority    TaskPriority  @default(MEDIUM)
+  dueDate     DateTime?
+  completedAt DateTime?
+  order       Int           @default(0)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime
+  projectId   String
+  assigneeId  String?
+  User        User?         @relation(fields: [assigneeId], references: [id])
+  Project     Project       @relation(fields: [projectId], references: [id])
+  TaskComment TaskComment[]
+  taskTypeId        String?          // null = a plain to-do task with no standards calc at all (old-style tasks still work)
+  dimensionsJson    Json?            // raw inputs, e.g. {"length": 260, "height": 12, "thickness": 0.75} — kept flexible per trade
+  computedQuantity  Float?           // the resolved m³/sqm/etc. from dimensionsJson
+  totalPersonDays   Float?           // computed ideal person-days needed (reference only, per Decision #5)
+  cumulativePercent Float  @default(0) // PM-reported, authoritative — NOT the system's theoretical estimate
+  floorTier         String?          // "FOUNDATION_PLINTH" | "FLOOR_1_5" | null (for non-tiered trades like plastering)
+
+  TaskType          TaskType?        @relation(fields: [taskTypeId], references: [id])
+  TaskDailyLog      TaskDailyLog[]
+  DailyReport       DailyReport[]
+}
+
+model TaskComment {
+  id        String   @id
+  content   String
+  createdAt DateTime @default(now())
+  taskId    String
+  userId    String
+  Task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  User      User     @relation(fields: [userId], references: [id])
+}
+
+model TaskType {
+  id                String   @id @default(uuid())
+  name              String   // e.g. "Brickwork — Foundation/Plinth", "Plastering"
+  trade             String   // "Brickwork", "Plastering", "Electrical", etc. — groups tiers of the same trade
+  unit              String   // "cum", "sqm", etc. — what the dimensions resolve to
+  hasStandard       Boolean  @default(true) // false = manual-only task type (e.g. Electrical) — no auto calculation at all
+  outputPerDay      Float?   // e.g. 1.39 (m³ per combined mason-day) — null if hasStandard is false
+  efficiencyFactor  Float    @default(0.85) // the 85% productivity adjustment, editable per type if ever needed
+  helperRatio       Float?   // helper-days needed per mason-day, e.g. 3.12
+  sourceCitation    String?  // "CPWD DAR 2023, Vol.1, Item 6.1.1" — keeps sourcing traceable, not just a bare number
+  dimensionFields   Json? // e.g. [{"label":"Length","defaultUnit":"ft"},{"label":"Height","defaultUnit":"ft"},{"label":"Thickness","defaultUnit":"inch"}]
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+
+  MaterialCoefficient MaterialCoefficient[]
+  Task                Task[]
+}
+
+// One TaskType can need several materials (e.g. Brickwork needs bricks AND cement AND sand)
+
+model MaterialCoefficient {
+  id            String   @id @default(uuid())
+  taskTypeId    String
+  materialId    String   // links to your existing Material model
+  qtyPerUnit    Float    // e.g. 500 (bricks per m³), or 0.38 (tonne cement per m³ mortar — pre-resolved into per-unit-of-work terms)
+  TaskType      TaskType @relation(fields: [taskTypeId], references: [id])
+  Material      Material @relation(fields: [materialId], references: [id])
+}
+
+model TaskDailyLog {
+  id              String   @id @default(uuid())
+  taskId          String
+  logDate         DateTime
+  reportedPercent Float
+  notes           String?
+  createdBy       String
+  createdAt       DateTime @default(now())
+
+  Task                 Task                   @relation(fields: [taskId], references: [id])
+  TaskDailyLogWorker   TaskDailyLogWorker[]
+  TaskDailyLogMaterial TaskDailyLogMaterial[]
+}
+
+model TaskDailyLogWorker {
+  id              String       @id @default(uuid())
+  taskDailyLogId  String
+  workerId        String?      // existing Worker, if regular staff
+  newWorkerName   String?      // if a brand-new/temp worker with no profile yet
+  role            String       // "Mason" | "Helper" | "Electrician" | etc.
+  wageForDay      Float        // pulled from Worker.dailyWage if workerId set, or typed in by PM if new
+  TaskDailyLog    TaskDailyLog @relation(fields: [taskDailyLogId], references: [id])
+  Worker          Worker?      @relation(fields: [workerId], references: [id])
+}
+
+// Manual material usage list — ONLY populated for task types with
+// hasStandard = false (Electrical, etc.), per Decision #2. Standard-based
+// task types (Brickwork, Plastering) don't need this — their material
+// deduction is computed automatically from reportedPercent × the
+// MaterialCoefficient table instead.
+
+model TaskDailyLogMaterial {
+  id              String       @id @default(uuid())
+  taskDailyLogId  String
+  materialId      String
+  quantityUsed    Float
+  TaskDailyLog    TaskDailyLog @relation(fields: [taskDailyLogId], references: [id])
+  Material        Material     @relation(fields: [materialId], references: [id])
+}
+
+model TruckEntry {
+  id          String    @id
+  vehicleNo   String
+  driverName  String
+  material    String
+  netWeight   Float
+  slipNo      String?
+  slipUrl     String?
+  entryTime   DateTime  @default(now())
+  exitTime    DateTime?
+  notes       String?
+  ratePerTrip Float?
+  createdAt   DateTime  @default(now())
+  projectId   String
+  vendorId    String?
+  Project     Project   @relation(fields: [projectId], references: [id])
+  Vendor      Vendor?   @relation(fields: [vendorId], references: [id])
+}
+
+model User {
+  id                   String          @id
+  email                String          @unique
+  password             String
+  firstName            String
+  lastName             String
+  role                 Role            @default(VIEWER)
+  phone                String?
+  avatar               String?
+  isActive             Boolean         @default(true)
+  lastLogin            DateTime?
+  passwordResetToken   String?
+  passwordResetExpires DateTime?
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime
+  AuditLog             AuditLog[]
+  DailyReport          DailyReport[]
+  Document             Document[]
+  Expense              Expense[]
+  Notification         Notification[]
+  ProjectMember        ProjectMember[]
+  Salary               Salary[]
+  Task                 Task[]
+  TaskComment          TaskComment[]
+  refreshTokens        RefreshToken[]
+  Upload               Upload[]
+}
+
+model Vendor {
+  id            String          @id
+  name          String
+  email         String?
+  phone         String
+  address       String?
+  gstNumber     String?
+  panNumber     String?
+  bankName      String?
+  bankAccount   String?
+  ifscCode      String?
+  rating        Float           @default(0)
+  category      String?
+  isActive      Boolean         @default(true)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime
+  PurchaseOrder PurchaseOrder[]
+  Quotation     Quotation[]
+  TruckEntry    TruckEntry[]
+}
+
+model Worker {
+  id         String       @id
+  name       String
+  phone      String?
+  aadharNo   String?
+  skill      String
+  dailyWage  Float
+  isActive   Boolean      @default(true)
+  joinDate   DateTime     @default(now())
+  address    String?
+  contractorId String?
+  createdAt  DateTime     @default(now())
+  contractor   Contractor?  @relation(fields: [contractorId], references: [id])
+  Attendance Attendance[]
+  Salary     Salary[]
+  CostTransfer  CostTransfer[]
+  WorkerProject WorkerProject[]
+  projectId String?
+  Project   Project? @relation(fields: [projectId], references: [id])
+  TaskDailyLogWorker TaskDailyLogWorker[]
+  DailyReportWorker DailyReportWorker[]
+}
+
+model DocumentCategory {
+  id        String   @id @default(uuid())
+  module    String   // 'expenses' | 'truck-entries' | 'machinery' | 'documents' | ...
+  name      String
+  createdBy String
+  createdAt DateTime @default(now())
+
+  @@unique([module, name])
+}
+
+model Upload {
+  id           String   @id @default(uuid())
+  projectId    String?
+  module       String
+  category     String?
+  fileName     String
+  originalName String
+  filePath     String
+  mimeType     String
+  size         Int
+  uploadedBy   String
+  createdAt    DateTime @default(now())
+  relatedType String? // "task-daily-log" | "machinery-log" | null
+  relatedId   String?
+
+  Project Project? @relation(fields: [projectId], references: [id])
+  User    User     @relation(fields: [uploadedBy], references: [id])
+
+  @@index([projectId, module, category])
+}
+
+enum ProjectStatus {
+  PLANNING
+  ACTIVE
+  ON_HOLD
+  COMPLETED
+  CANCELLED
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  REVIEW
+  DONE
+  BLOCKED
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum MachineryStatus {
+  ACTIVE
+  MAINTENANCE
+  IDLE
+  RETIRED
+}
+
+enum SalaryStatus {
+  PENDING
+  PROCESSED
+  PAID
+}
+
+enum ExpenseStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum LabourType {
+  SKILLED
+  UNSKILLED
+  SUPERVISOR
+}
+
+enum MovementType {
+  IN
+  OUT
+  TRANSFER
+  ADJUSTMENT
+}
+
+enum POStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  PARTIALLY_RECEIVED
+  RECEIVED
+  CANCELLED
+}
+
+enum QuotationStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  REJECTED
+  EXPIRED
+}
+
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+  PROJECT_MANAGER
+  SITE_ENGINEER
+  ACCOUNTANT
+  STORE_KEEPER
+  LABOUR_SUPERVISOR
+  VIEWER
+}
