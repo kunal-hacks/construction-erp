@@ -305,7 +305,7 @@ model Project {
   clientEmail      String?
   clientPhone      String?
   status           ProjectStatus      @default(PLANNING)
-  budget           String
+  budget  Float
   startDate        DateTime
   endDate          DateTime?
   location         String?
@@ -547,13 +547,15 @@ model TruckEntry {
   vehicleNo   String
   driverName  String
   material    String
-  netWeight   Float
+  grossWeight Float     @default(0)
+  tareWeight  Float     @default(0)
+  netWeight   Float     @default(0)
+  ratePerTrip Float?
   slipNo      String?
   slipUrl     String?
   entryTime   DateTime  @default(now())
   exitTime    DateTime?
   notes       String?
-  ratePerTrip Float?
   createdAt   DateTime  @default(now())
   projectId   String
   vendorId    String?

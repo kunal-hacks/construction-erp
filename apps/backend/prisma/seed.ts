@@ -381,18 +381,18 @@ async function main() {
 
   console.log('✅ Quotations created');
 
-  // ─── TRUCK ENTRIES ───────────────────────────────────────────
-  for (const t of [
-    { projectId: project1.id, vendorId: vendor3.id, vehicleNo: 'PB10-CA-1234', driverName: 'Gurjit Singh', material: 'River Sand', grossWeight: 22.5, tareWeight: 10.2, netWeight: 12.3, slipNo: 'SLIP-001', entryTime: new Date('2025-05-15T08:30:00') },
-    { projectId: project1.id, vendorId: vendor3.id, vehicleNo: 'PB10-CB-5678', driverName: 'Balwinder', material: 'Coarse Aggregate', grossWeight: 21.8, tareWeight: 10.0, netWeight: 11.8, slipNo: 'SLIP-002', entryTime: new Date('2025-05-15T10:15:00') },
-    { projectId: project1.id, vehicleNo: 'PB10-CC-9012', driverName: 'Sukhdev', material: 'River Sand', grossWeight: 23.2, tareWeight: 10.5, netWeight: 12.7, slipNo: 'SLIP-003', entryTime: new Date('2025-05-16T09:00:00') },
-    { projectId: project2.id, vendorId: vendor3.id, vehicleNo: 'PB08-DA-4321', driverName: 'Ranjit Kumar', material: 'Cement Bags', grossWeight: 18.5, tareWeight: 8.2, netWeight: 10.3, slipNo: 'SLIP-004', entryTime: new Date('2025-05-16T11:30:00') },
-    { projectId: project1.id, vehicleNo: 'PB10-CE-3456', driverName: 'Harbhajan', material: 'Steel Rods', grossWeight: 25.0, tareWeight: 10.8, netWeight: 14.2, slipNo: 'SLIP-005', entryTime: new Date('2025-05-17T08:00:00') },
-  ]) {
-    await prisma.truckEntry.create({ data: { id: id(), ...t } });
-  }
+// ─── TRUCK ENTRIES ───────────────────────────────────────────
+for (const t of [
+  { projectId: project1.id, vendorId: vendor3.id, vehicleNo: 'PB10-CA-1234', driverName: 'Gurjit Singh', material: 'River Sand', slipNo: 'SLIP-001', notes: '22.5 MT gross, 10.2 MT tare, 12.3 MT net' },
+  { projectId: project1.id, vendorId: vendor3.id, vehicleNo: 'PB10-CB-5678', driverName: 'Balwinder', material: 'Coarse Aggregate', slipNo: 'SLIP-002', notes: '21.8 MT gross, 10.0 MT tare, 11.8 MT net' },
+  { projectId: project1.id, vehicleNo: 'PB10-CC-9012', driverName: 'Sukhdev', material: 'River Sand', slipNo: 'SLIP-003', notes: '23.2 MT gross, 10.5 MT tare, 12.7 MT net' },
+  { projectId: project2.id, vendorId: vendor3.id, vehicleNo: 'PB08-DA-4321', driverName: 'Ranjit Kumar', material: 'Cement Bags', slipNo: 'SLIP-004', notes: '18.5 MT gross, 8.2 MT tare, 10.3 MT net' },
+  { projectId: project1.id, vehicleNo: 'PB10-CE-3456', driverName: 'Harbhajan', material: 'Steel Rods', slipNo: 'SLIP-005', notes: '25.0 MT gross, 10.8 MT tare, 14.2 MT net' },
+]) {
+  await prisma.truckEntry.create({ data: { id: id(), ...t } });
+}
 
-  console.log('✅ Truck entries created');
+console.log('✅ Truck entries created');
 
   // ─── TASKS ───────────────────────────────────────────────────
   for (const t of [
