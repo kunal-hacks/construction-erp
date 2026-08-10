@@ -3,7 +3,7 @@ import { prisma } from '../config/database';
 import { sendSuccess, sendCreated, sendError, sendNotFound, sendPaginatedSuccess, getPagination } from '../utils/response';
 import { AuthRequest } from '../middleware/auth';
 import { logger } from '../utils/logger';
-import { getUserProjectIds, isAdmin } from '../middleware/projectScope';
+import { getUserProjectIds } from '../middleware/projectScope';
 
 export const getExpenses = async (req: AuthRequest, res: Response): Promise<void> => {
   try {

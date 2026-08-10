@@ -20,7 +20,7 @@ if (process.env.NODE_ENV !== 'production') {
   globalForPrisma.prisma = prisma;
 }
 
-prisma.$on('query', (e) => {
+(prisma as any).$on('query', (e: any) => {
   if (process.env.NODE_ENV === 'development') {
     logger.debug(`Query: ${e.query}`);
     logger.debug(`Duration: ${e.duration}ms`);

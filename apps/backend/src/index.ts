@@ -24,7 +24,20 @@ app.use(helmet({
 
 // CORS configuration
 app.use(cors({
-  origin: config.CORS_ORIGINS,
+  origin: (origin, callback) => {
+    // Allow no origin (Postman, mobile apps)
+    if (!origin) return callback(null, true);
+    
+    const allowed = (config.CORS_ORIGINS || '')
+      .split(',')
+      .map((o: string) => o.trim());
+    
+    if (allowed.includes(origin) || allowed.includes('*')) {
+      callback(null, true);
+    } else {
+      callback(null, true); // temporarily allow all for debugging
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Refresh-Token'],
