@@ -15,7 +15,7 @@ export async function createCostTransfer(params: {
   expenseTitle?: string;
   expenseCategory?: string;
 }) {
-  const { projectId, module, amount, userId, projectName, date, workerId, expenseTitle, expenseCategory } = params;
+  const { projectId, module, amount, userId, projectName, date, workerId, workerName, expenseTitle, expenseCategory } = params;
   const moduleLabel = module === 'truck-entries' ? 'Truck Entries' : module === 'machinery' ? 'Machinery' : 'Salary';
   const expenseDate = date ? new Date(date) : new Date();
 

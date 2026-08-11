@@ -11,6 +11,6 @@ router.get('/:id', getPurchaseOrderById);
 router.post('/', createPurchaseOrder);
 router.post('/:id/submit', submitPurchaseOrder);
 router.post('/:id/approve', authorize(Role.SUPER_ADMIN, Role.ADMIN), approvePurchaseOrder);
-router.post('/:id/goods-receipt', authorize(Role.SUPER_ADMIN, Role.ADMIN, Role.STORE_MANAGER), recordGoodsReceipt);
+router.post('/:id/goods-receipt', authorize(Role.SUPER_ADMIN, Role.ADMIN), recordGoodsReceipt);
 
 export default router;

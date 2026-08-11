@@ -14,18 +14,15 @@ export const auditLog = (module: string, action: string) => {
           ['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
         setImmediate(async () => {
           try {
-            await prisma.auditLog.create({
-              data: {
-                userId: req.user?.id,
-                action,
-                module,
-                recordId: req.params.id || null,
-                oldData: req.method === 'PUT' || req.method === 'PATCH' ? oldBody : null,
-                newData: req.method !== 'DELETE' ? (body as { data?: unknown })?.data || null : null,
-                ipAddress: req.ip || req.connection.remoteAddress,
-                userAgent: req.headers['user-agent'],
-              },
-            });
+            const data: any = {
+              action,
+              module,
+              entityId: req.params.id || null,
+              ipAddress: req.ip || req.connection.remoteAddress,
+            };
+            if (req.user && req.user.id) data.userId = req.user.id;
+
+            await (prisma as any).auditLog.create({ data });
           } catch (error) {
             logger.error('Audit log error:', error);
           }

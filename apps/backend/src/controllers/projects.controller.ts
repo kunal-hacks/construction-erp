@@ -1,53 +1,40 @@
 import { Response } from 'express';
-import { ProjectStatus } from '@prisma/client';
+import { randomUUID } from 'crypto';
 import { prisma } from '../config/database';
 import { sendSuccess, sendCreated, sendError, sendNotFound, sendPaginatedSuccess, getPagination } from '../utils/response';
 import { AuthRequest } from '../middleware/auth';
-import { getUserProjectIds, ADMIN_ROLES } from '../middleware/projectScope';
 import { logger } from '../utils/logger';
-import { UPLOAD_ROOT, ensureDir, sanitizeSegment } from '../utils/uploadPaths';
-import path from 'path';
-
-// Throws-free helper: returns true if this user is allowed to touch this project
-const canAccessProject = (allowedProjectIds: string[] | undefined, projectId: string) =>
-  !allowedProjectIds || allowedProjectIds.includes(projectId);
 
 export const getProjects = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { page, pageSize, skip, take } = getPagination(req.query);
     const { search, status } = req.query;
-    const allowedProjectIds = await getUserProjectIds(req);
+    const user = req.user!;
+    const where: any = {};
 
-    const where: Record<string, unknown> = {};
-
-    if (allowedProjectIds) {
-      where.id = { in: allowedProjectIds };
+    if (!['SUPER_ADMIN', 'ADMIN', 'ACCOUNTANT'].includes(user.role)) {
+      where.ProjectMember = { some: { userId: user.id } };
     }
-
     if (search) {
       where.OR = [
         { name: { contains: search, mode: 'insensitive' } },
         { projectCode: { contains: search, mode: 'insensitive' } },
         { location: { contains: search, mode: 'insensitive' } },
+        { clientName: { contains: search, mode: 'insensitive' } },
       ];
     }
-
-    if (status) where.status = status as ProjectStatus;
+    if (status) where.status = status;
 
     const [projects, total] = await Promise.all([
       prisma.project.findMany({
-        where,
-        skip,
-        take,
+        where, skip, take,
         include: {
           ProjectMember: {
             include: {
               User: { select: { id: true, firstName: true, lastName: true, role: true } },
             },
           },
-          _count: {
-            select: { Task: true, DailyReport: true, Expense: true },
-          },
+          _count: { select: { Task: true, DailyReport: true, Expense: true } },
         },
         orderBy: { createdAt: 'desc' },
       }),
@@ -63,170 +50,145 @@ export const getProjects = async (req: AuthRequest, res: Response): Promise<void
 
 export const getProjectById = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const allowedProjectIds = await getUserProjectIds(req);
-
-    // Block before ever hitting the DB for the real record — a PM asking about
-    // a project they're not on should get exactly the same response as a
-    // project that doesn't exist at all. Don't leak existence.
-    if (!canAccessProject(allowedProjectIds, req.params.id)) {
-      sendNotFound(res, 'Project not found');
-      return;
-    }
-
     const project = await prisma.project.findUnique({
       where: { id: req.params.id },
       include: {
         ProjectMember: {
           include: {
-            User: {
-              select: { id: true, firstName: true, lastName: true, email: true, role: true, avatar: true },
-            },
+            User: { select: { id: true, firstName: true, lastName: true, role: true, email: true } },
           },
         },
-        _count: {
-          select: {
-            Task: true,
-            DailyReport: true,
-            Expense: true,
-            TruckEntry: true,
-            Document: true,
-          },
-        },
+        _count: { select: { Task: true, DailyReport: true, Expense: true } },
       },
     });
-
-    if (!project) {
-      sendNotFound(res, 'Project not found');
-      return;
-    }
-
-    const totalExpenses = await prisma.expense.aggregate({
-      where: { projectId: req.params.id, status: 'APPROVED' },
-      _sum: { amount: true },
-    });
-
-    const projectWithStats = {
-      ...project,
-      budgetUtilization: totalExpenses._sum.amount
-        ? (Number(totalExpenses._sum.amount) / Number(project.budget) * 100).toFixed(2)
-        : '0.00',
-    };
-
-    sendSuccess(res, projectWithStats);
+    if (!project) { sendNotFound(res, 'Project not found'); return; }
+    sendSuccess(res, project);
   } catch (error) {
     logger.error('Get project error:', error);
     sendError(res, 'Failed to fetch project', 500);
   }
 };
 
+export const getProjectDashboard = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const project = await prisma.project.findUnique({ where: { id } });
+    if (!project) { sendNotFound(res, 'Project not found'); return; }
+
+    const [totalExpenses, approvedExpenses, pendingTasks, completedTasks, recentReports] = await Promise.all([
+      prisma.expense.aggregate({ where: { projectId: id }, _sum: { amount: true } }),
+      prisma.expense.aggregate({ where: { projectId: id, status: 'APPROVED' }, _sum: { amount: true } }),
+      prisma.task.count({ where: { projectId: id, status: { not: 'DONE' } } }),
+      prisma.task.count({ where: { projectId: id, status: 'DONE' } }),
+      prisma.dailyReport.findMany({ where: { projectId: id }, orderBy: { reportDate: 'desc' }, take: 5 }),
+    ]);
+
+    const budget = Number(project.budget) || 0;
+    const approved = Number(approvedExpenses._sum.amount || 0);
+    const budgetUsed = budget > 0 ? ((approved / budget) * 100).toFixed(1) : '0';
+
+    sendSuccess(res, {
+      project,
+      stats: {
+        totalExpenses: Number(totalExpenses._sum.amount || 0),
+        approvedExpenses: approved,
+        budgetUsed: parseFloat(budgetUsed),
+        budgetRemaining: budget - approved,
+        pendingTasks,
+        completedTasks,
+      },
+      recentReports,
+    });
+  } catch (error) {
+    logger.error('Get project dashboard error:', error);
+    sendError(res, 'Failed to fetch dashboard', 500);
+  }
+};
+
 export const createProject = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    // Only admins create projects from scratch — a PM being "assigned" a new
-    // project still goes through an admin creating it, per the user-creation flow.
-    if (!ADMIN_ROLES.includes(req.user!.role)) {
-      sendError(res, 'Only admins can create projects', 403);
-      return;
-    }
-
     const {
-      name, clientName, clientEmail, clientPhone,
-      location, budget, startDate, endDate,
-      description, memberIds,
+      name, description, clientName, clientEmail, clientPhone,
+      location, budget, startDate, endDate, status
     } = req.body;
+
+    if (!name) { sendError(res, 'Project name is required', 400); return; }
+    if (!clientName) { sendError(res, 'Client name is required', 400); return; }
+    if (!startDate) { sendError(res, 'Start date is required', 400); return; }
+
+    // Remove null bytes that PostgreSQL rejects
+    const clean = (val: any) =>
+      typeof val === 'string' ? val.replace(/\0/g, '').trim() || null : val ?? null;
 
     const count = await prisma.project.count();
     const projectCode = `PROJ-${String(count + 1).padStart(4, '0')}`;
 
     const project = await prisma.project.create({
       data: {
-        id: crypto.randomUUID(),
-        name,
-        projectCode,
-        clientName,
-        clientEmail: clientEmail || null,
-        clientPhone: clientPhone || null,
-        location: location || null,
-        budget,
+        id: randomUUID(),
+        name: clean(name)!,
+        description: clean(description),
+        clientName: clean(clientName)!,
+        clientEmail: clean(clientEmail),
+        clientPhone: clean(clientPhone),
+        location: clean(location),
+        budget: budget ? parseFloat(String(budget)) : 0,
         startDate: new Date(startDate),
         endDate: endDate ? new Date(endDate) : null,
-        description: description || null,
+        status: status || 'PLANNING',
+        projectCode,
         progress: 0,
         updatedAt: new Date(),
         ProjectMember: {
-          create: memberIds?.map((userId: string) => ({
-            id: crypto.randomUUID(),
-            userId,
-            role: 'VIEWER',
-          })) || [],
+          create: {
+            id: randomUUID(),
+            userId: req.user!.id,
+            role: 'Project Director',
+          },
         },
       },
       include: {
         ProjectMember: {
           include: {
-            User: { select: { id: true, firstName: true, lastName: true, role: true } },
+            User: { select: { id: true, firstName: true, lastName: true } },
           },
         },
       },
     });
 
-    // Auto-create this project's upload folder (uploads/{projectCode}/) —
-    // module/category subfolders (expenses/, Materials/, etc.) get created
-    // lazily on first actual upload, so we don't need to pre-create every
-    // possible combination here.
-    ensureDir(path.join(UPLOAD_ROOT, sanitizeSegment(project.projectCode)));
-
     sendCreated(res, project, 'Project created successfully');
-  } catch (error) {
+  } catch (error: any) {
     logger.error('Create project error:', error);
-    sendError(res, 'Failed to create project', 500);
+    sendError(res, error.message || 'Failed to create project', 500);
   }
 };
 
 export const updateProject = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const allowedProjectIds = await getUserProjectIds(req);
-    if (!canAccessProject(allowedProjectIds, req.params.id)) {
-      sendNotFound(res, 'Project not found');
-      return;
-    }
-
-    const project = await prisma.project.findUnique({ where: { id: req.params.id } });
-    if (!project) {
-      sendNotFound(res, 'Project not found');
-      return;
-    }
-
     const {
-      name, location, budget, startDate, endDate,
-      status, description, progress,
-      clientName, clientEmail, clientPhone,
+      name, description, clientName, clientEmail, clientPhone,
+      location, budget, startDate, endDate, status, progress
     } = req.body;
 
-    // A PM can update day-to-day fields (progress, description) on their own
-    // project, but shouldn't be able to change budget, dates, status, or
-    // client info — those are admin decisions.
-    const isAdmin = ADMIN_ROLES.includes(req.user!.role);
-
-    const updated = await prisma.project.update({
+    const project = await prisma.project.update({
       where: { id: req.params.id },
       data: {
-        ...(isAdmin && name && { name }),
-        ...(isAdmin && location !== undefined && { location }),
-        ...(isAdmin && clientName && { clientName }),
-        ...(isAdmin && clientEmail !== undefined && { clientEmail }),
-        ...(isAdmin && clientPhone !== undefined && { clientPhone }),
-        ...(isAdmin && budget && { budget }),
-        ...(isAdmin && startDate && { startDate: new Date(startDate) }),
-        ...(isAdmin && endDate !== undefined && { endDate: endDate ? new Date(endDate) : null }),
-        ...(isAdmin && status && { status: status as ProjectStatus }),
+        ...(name && { name }),
         ...(description !== undefined && { description }),
-        ...(progress !== undefined && { progress }),
+        ...(clientName && { clientName }),
+        ...(clientEmail !== undefined && { clientEmail }),
+        ...(clientPhone !== undefined && { clientPhone }),
+        ...(location !== undefined && { location }),
+        ...(budget !== undefined && { budget: parseFloat(String(budget)) }),
+        ...(startDate && { startDate: new Date(startDate) }),
+        ...(endDate !== undefined && { endDate: endDate ? new Date(endDate) : null }),
+        ...(status && { status }),
+        ...(progress !== undefined && { progress: parseFloat(String(progress)) }),
         updatedAt: new Date(),
       },
     });
-
-    sendSuccess(res, updated, 'Project updated successfully');
-  } catch (error) {
+    sendSuccess(res, project, 'Project updated successfully');
+  } catch (error: any) {
     logger.error('Update project error:', error);
     sendError(res, 'Failed to update project', 500);
   }
@@ -234,162 +196,49 @@ export const updateProject = async (req: AuthRequest, res: Response): Promise<vo
 
 export const deleteProject = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    // Cancelling a project is an admin-only action, full stop.
-    if (!ADMIN_ROLES.includes(req.user!.role)) {
-      sendError(res, 'Only admins can cancel projects', 403);
-      return;
-    }
-
-    const project = await prisma.project.findUnique({ where: { id: req.params.id } });
-    if (!project) {
-      sendNotFound(res, 'Project not found');
-      return;
-    }
-
     await prisma.project.update({
       where: { id: req.params.id },
-      data: { status: ProjectStatus.CANCELLED, updatedAt: new Date() },
+      data: { status: 'CANCELLED', updatedAt: new Date() },
     });
-
-    sendSuccess(res, null, 'Project cancelled successfully');
+    sendSuccess(res, null, 'Project cancelled');
   } catch (error) {
     logger.error('Delete project error:', error);
-    sendError(res, 'Failed to cancel project', 500);
+    sendError(res, 'Failed to delete project', 500);
   }
 };
 
 export const addProjectMember = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    // Only admins assign people to projects — this is how PM assignment itself works,
-    // so a PM granting themselves/others access here would be a privilege escalation.
-    if (!ADMIN_ROLES.includes(req.user!.role)) {
-      sendError(res, 'Only admins can add project members', 403);
-      return;
-    }
-
     const { userId, role } = req.body;
-    const { id: projectId } = req.params;
-
     const existing = await prisma.projectMember.findUnique({
-      where: { projectId_userId: { projectId, userId } },
+      where: { projectId_userId: { projectId: req.params.id, userId } },
     });
-
     if (existing) {
-      sendError(res, 'User is already a member of this project', 409);
+      const updated = await prisma.projectMember.update({
+        where: { projectId_userId: { projectId: req.params.id, userId } },
+        data: { role },
+      });
+      sendSuccess(res, updated, 'Member role updated');
       return;
     }
-
     const member = await prisma.projectMember.create({
-      data: {
-        id: crypto.randomUUID(),
-        projectId,
-        userId,
-        role: role as string,
-      },
-      include: {
-        User: { select: { id: true, firstName: true, lastName: true, email: true, role: true } },
-      },
+      data: { id: randomUUID(), projectId: req.params.id, userId, role },
     });
-
-    sendCreated(res, member, 'Member added successfully');
+    sendCreated(res, member, 'Member added');
   } catch (error) {
-    logger.error('Add project member error:', error);
+    logger.error('Add member error:', error);
     sendError(res, 'Failed to add member', 500);
   }
 };
 
 export const removeProjectMember = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    if (!ADMIN_ROLES.includes(req.user!.role)) {
-      sendError(res, 'Only admins can remove project members', 403);
-      return;
-    }
-
-    const { id: projectId, userId } = req.params;
-
     await prisma.projectMember.delete({
-      where: { projectId_userId: { projectId, userId } },
+      where: { projectId_userId: { projectId: req.params.id, userId: req.params.userId } },
     });
-
-    sendSuccess(res, null, 'Member removed successfully');
+    sendSuccess(res, null, 'Member removed');
   } catch (error) {
-    logger.error('Remove project member error:', error);
+    logger.error('Remove member error:', error);
     sendError(res, 'Failed to remove member', 500);
-  }
-};
-
-export const getProjectDashboard = async (req: AuthRequest, res: Response): Promise<void> => {
-  try {
-    const { id } = req.params;
-    const allowedProjectIds = await getUserProjectIds(req);
-
-    if (!canAccessProject(allowedProjectIds, id)) {
-      sendNotFound(res, 'Project not found');
-      return;
-    }
-
-    const [project, recentReportsRaw, recentExpenses, taskStats, inventory] = await Promise.all([
-      prisma.project.findUnique({ where: { id } }),
-      prisma.dailyReport.findMany({
-        where: { projectId: id },
-        take: 7,
-        orderBy: { reportDate: 'desc' },
-        include: { User: { select: { firstName: true, lastName: true } } },
-      }),
-      prisma.expense.findMany({
-        where: { projectId: id, status: 'APPROVED' },
-        take: 10,
-        orderBy: { expenseDate: 'desc' },
-      }),
-      prisma.task.groupBy({
-        by: ['status'],
-        where: { projectId: id },
-        _count: { status: true },
-      }),
-      prisma.inventoryItem.findMany({
-        where: { projectId: id },
-        include: { Material: true },
-        take: 10,
-      }),
-    ]);
-
-    if (!project) {
-      sendNotFound(res, 'Project not found');
-      return;
-    }
-
-    // The reports list endpoint (dailyReports.controller.ts) normalizes
-    // progress → completionPct and User → submitter before returning data.
-    // This dashboard endpoint queries the same DailyReport rows directly and
-    // was skipping that step — the frontend read a field (`completionPct`)
-    // that never existed on the raw response, producing NaN%. Apply the same
-    // mapping here so both endpoints hand back the same shape.
-    const recentReports = recentReportsRaw.map((r) => ({
-      ...r,
-      completionPct: r.progress,
-      submitter: r.User,
-    }));
-
-    const totalExpenses = recentExpenses.reduce((sum, e) => sum + Number(e.amount), 0);
-    const taskSummary = taskStats.reduce((acc, t) => {
-      acc[t.status] = t._count.status;
-      return acc;
-    }, {} as Record<string, number>);
-
-    sendSuccess(res, {
-      project,
-      stats: {
-        totalExpenses,
-        budgetUsed: (totalExpenses / Number(project.budget) * 100).toFixed(2),
-        taskSummary,
-        inventoryCount: inventory.length,
-      },
-      recentReports,
-      recentExpenses,
-      inventory,
-    });
-  } catch (error) {
-    logger.error('Get project dashboard error:', error);
-    sendError(res, 'Failed to fetch dashboard', 500);
   }
 };

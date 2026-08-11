@@ -20,7 +20,7 @@ model RefreshToken {
 }
 
 model Attendance {
-  id           String      @id
+  id           String      @id @default(cuid())
   date         DateTime
   present      Boolean     @default(true)
   hoursWorked  Float       @default(8)
@@ -36,7 +36,7 @@ model Attendance {
 }
 
 model AuditLog {
-  id         String   @id
+  id         String   @id @default(cuid())
   action     String
   module     String
   entityId   String?
@@ -50,7 +50,7 @@ model AuditLog {
 }
 
 model Contractor {
-  id         String       @id
+  id         String       @id @default(cuid())
   name       String
   company    String?
   phone      String
@@ -65,7 +65,7 @@ model Contractor {
 }
 
 model DailyReport {
-  id          String        @id
+  id          String        @id @default(cuid())
   reportDate  DateTime
   weather     String
   temperature Float?
@@ -91,7 +91,7 @@ model DailyReport {
 }
 
 model DailyReportWorker {
-  id           String      @id @default(uuid())
+  id           String      @id @default(cuid())
   reportId     String
   name         String
   workerId     String?
@@ -103,7 +103,7 @@ model DailyReportWorker {
 }
 
 model DailyReportMaterial {
-  id           String      @id @default(uuid())
+  id           String      @id @default(cuid())
   reportId     String
   materialId   String
   quantityUsed Float
@@ -112,7 +112,7 @@ model DailyReportMaterial {
 }
 
 model Document {
-  id          String   @id
+  id          String   @id @default(cuid())
   name        String
   fileUrl     String
   fileType    String
@@ -127,7 +127,7 @@ model Document {
 }
 
 model Expense {
-  id             String        @id
+  id             String        @id @default(cuid())
   title          String
   description    String?
   amount         Float
@@ -149,7 +149,7 @@ model Expense {
 }
 
 model CorrectionRequest {
-  id              String   @id @default(uuid())
+  id              String   @id @default(cuid())
   entityType      String   // "Expense" | "TruckEntry" | etc. — generic, not tied to one table
   entityId        String
   requestedBy     String   // the PM
@@ -164,7 +164,7 @@ model CorrectionRequest {
 }
 
 model InventoryItem {
-  id            String          @id
+  id            String          @id @default(cuid())
   quantity      Float
   minStock      Float           @default(0)
   unitPrice     Float
@@ -181,7 +181,7 @@ model InventoryItem {
 }
 
 model LabourEntry {
-  id              String      @id
+  id              String      @id @default(cuid())
   reportId        String
   labourType      LabourType
   count           Int
@@ -191,7 +191,7 @@ model LabourEntry {
 }
 
 model Machinery {
-  id               String             @id
+  id               String             @id @default(cuid())
   name             String
   type             String
   make             String?
@@ -209,7 +209,7 @@ model Machinery {
 }
 
 model MachineryLog {
-  id            String    @id
+  id            String    @id @default(cuid())
   logDate       DateTime
   hoursUsed     Float
   fuelUsed      Float?
@@ -229,7 +229,7 @@ model MachineryLog {
 }
 
 model CostTransfer {
-  id         String   @id @default(uuid())
+  id         String   @id @default(cuid())
   projectId  String
   module     String   // 'truck-entries' | 'machinery' | 'salary'
   workerId   String?  // set when paying a permanent Worker
@@ -247,7 +247,7 @@ model CostTransfer {
 }
 
 model WorkerProject {
-  id        String  @id @default(uuid())
+  id        String  @id @default(cuid())
   workerId  String
   projectId String
   Worker    Worker  @relation(fields: [workerId], references: [id])
@@ -257,7 +257,7 @@ model WorkerProject {
 }
 
 model Material {
-  id            String          @id
+  id            String          @id @default(cuid())
   name          String
   unit          String
   category      String
@@ -272,7 +272,7 @@ model Material {
 }
 
 model Notification {
-  id        String   @id
+  id        String   @id @default(cuid())
   title     String
   message   String
   type      String
@@ -285,7 +285,7 @@ model Notification {
 }
 
 model POItem {
-  id            String        @id
+  id            String        @id @default(cuid())
   quantity      Float
   unitPrice     Float
   totalPrice    Float
@@ -298,14 +298,14 @@ model POItem {
 }
 
 model Project {
-  id               String             @id
+  id               String             @id @default(cuid()) 
   name             String
   description      String?
   clientName       String
   clientEmail      String?
   clientPhone      String?
   status           ProjectStatus      @default(PLANNING)
-  budget  Float
+  budget           Decimal            @default(0) @db.Decimal(15, 2)            
   startDate        DateTime
   endDate          DateTime?
   location         String?
@@ -333,7 +333,7 @@ model Project {
 }
 
 model ProjectMachinery {
-  id          String    @id
+  id          String    @id @default(cuid()) 
   startDate   DateTime
   endDate     DateTime?
   notes       String?
@@ -344,7 +344,7 @@ model ProjectMachinery {
 }
 
 model ProjectMember {
-  id        String   @id
+  id        String   @id @default(cuid()) 
   projectId String
   userId    String
   role      String
@@ -356,7 +356,7 @@ model ProjectMember {
 }
 
 model PurchaseOrder {
-  id           String    @id
+  id           String    @id @default(cuid()) 
   poNumber     String    @unique
   status       POStatus  @default(DRAFT)
   totalAmount  Float
@@ -373,7 +373,7 @@ model PurchaseOrder {
 }
 
 model Quotation {
-  id            String          @id
+  id            String          @id @default(cuid()) 
   quotationNo   String          @unique
   status        QuotationStatus @default(DRAFT)
   validUntil    DateTime?
@@ -390,7 +390,7 @@ model Quotation {
 }
 
 model QuotationItem {
-  id          String    @id
+  id          String          @id @default(cuid()) 
   quantity    Float
   unitPrice   Float
   totalPrice  Float
@@ -402,7 +402,7 @@ model QuotationItem {
 }
 
 model Salary {
-  id          String       @id
+  id          String       @id @default(cuid()) 
   month       Int
   year        Int
   basicSalary Float
@@ -422,7 +422,7 @@ model Salary {
 }
 
 model StockMovement {
-  id              String        @id
+  id              String        @id @default(cuid())
   movementType    MovementType
   quantity        Float
   unitPrice       Float?
@@ -434,7 +434,7 @@ model StockMovement {
 }
 
 model Task {
-  id          String        @id
+  id          String        @id @default(cuid()) 
   title       String
   description String?
   status      TaskStatus    @default(TODO)
@@ -462,7 +462,7 @@ model Task {
 }
 
 model TaskComment {
-  id        String   @id
+  id        String   @id @default(cuid()) 
   content   String
   createdAt DateTime @default(now())
   taskId    String
@@ -472,7 +472,7 @@ model TaskComment {
 }
 
 model TaskType {
-  id                String   @id @default(uuid())
+  id                String   @id @default(cuid()) 
   name              String   // e.g. "Brickwork — Foundation/Plinth", "Plastering"
   trade             String   // "Brickwork", "Plastering", "Electrical", etc. — groups tiers of the same trade
   unit              String   // "cum", "sqm", etc. — what the dimensions resolve to
@@ -494,7 +494,7 @@ model TaskType {
 // One TaskType can need several materials (e.g. Brickwork needs bricks AND cement AND sand)
 
 model MaterialCoefficient {
-  id            String   @id @default(uuid())
+  id            String   @id @default(cuid()) 
   taskTypeId    String
   materialId    String   // links to your existing Material model
   qtyPerUnit    Float    // e.g. 500 (bricks per m³), or 0.38 (tonne cement per m³ mortar — pre-resolved into per-unit-of-work terms)
@@ -503,7 +503,7 @@ model MaterialCoefficient {
 }
 
 model TaskDailyLog {
-  id              String   @id @default(uuid())
+  id              String   @id @default(cuid()) 
   taskId          String
   logDate         DateTime
   reportedPercent Float
@@ -517,7 +517,7 @@ model TaskDailyLog {
 }
 
 model TaskDailyLogWorker {
-  id              String       @id @default(uuid())
+  id              String       @id @default(cuid()) 
   taskDailyLogId  String
   workerId        String?      // existing Worker, if regular staff
   newWorkerName   String?      // if a brand-new/temp worker with no profile yet
@@ -534,7 +534,7 @@ model TaskDailyLogWorker {
 // MaterialCoefficient table instead.
 
 model TaskDailyLogMaterial {
-  id              String       @id @default(uuid())
+  id              String       @id @default(cuid())
   taskDailyLogId  String
   materialId      String
   quantityUsed    Float
@@ -543,7 +543,7 @@ model TaskDailyLogMaterial {
 }
 
 model TruckEntry {
-  id          String    @id
+  id          String          @id @default(cuid()) 
   vehicleNo   String
   driverName  String
   material    String
@@ -564,7 +564,7 @@ model TruckEntry {
 }
 
 model User {
-  id                   String          @id
+  id                   String          @id @default(cuid()) 
   email                String          @unique
   password             String
   firstName            String
@@ -592,7 +592,7 @@ model User {
 }
 
 model Vendor {
-  id            String          @id
+  id            String          @id @default(cuid())
   name          String
   email         String?
   phone         String
@@ -613,7 +613,7 @@ model Vendor {
 }
 
 model Worker {
-  id         String       @id
+  id         String       @id @default(cuid()) 
   name       String
   phone      String?
   aadharNo   String?
@@ -636,7 +636,7 @@ model Worker {
 }
 
 model DocumentCategory {
-  id        String   @id @default(uuid())
+  id        String   @id @default(cuid()) 
   module    String   // 'expenses' | 'truck-entries' | 'machinery' | 'documents' | ...
   name      String
   createdBy String
@@ -646,7 +646,7 @@ model DocumentCategory {
 }
 
 model Upload {
-  id           String   @id @default(uuid())
+  id           String   @id @default(cuid())
   projectId    String?
   module       String
   category     String?

@@ -14,7 +14,6 @@ import { notFound } from './middleware/notFound';
 import vendorRoutes from './routes/vendors.routes';
 import path from 'path';
 
-
 const app = express();
 
 // Security middleware
@@ -25,17 +24,18 @@ app.use(helmet({
 // CORS configuration
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow no origin (Postman, mobile apps)
     if (!origin) return callback(null, true);
-    
-    const allowed = (config.CORS_ORIGINS || '')
-      .split(',')
-      .map((o: string) => o.trim());
-    
+    const origins = config.CORS_ORIGINS as any;
+    const allowed = Array.isArray(origins)
+      ? origins.map((o: string) => String(o).trim())
+      : String(origins || '')
+          .split(',')
+          .map((o: string) => o.trim())
+          .filter((o: string) => o.length > 0);
     if (allowed.includes(origin) || allowed.includes('*')) {
       callback(null, true);
     } else {
-      callback(null, true); // temporarily allow all for debugging
+      callback(null, true);
     }
   },
   credentials: true,
@@ -46,6 +46,26 @@ app.use(cors({
 // Request parsing
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+
+// ✅ Global sanitizer — converts empty strings to null, removes null bytes
+app.use((req, _res, next) => {
+  const sanitize = (val: any): any => {
+    if (typeof val === 'string') {
+      const cleaned = val.replace(/\0/g, '').replace(/\x00/g, '').trim();
+      return cleaned === '' ? null : cleaned;  // ← empty string becomes null
+    }
+    if (Array.isArray(val)) return val.map(sanitize);
+    if (val && typeof val === 'object') {
+      return Object.fromEntries(
+        Object.entries(val).map(([k, v]) => [k, sanitize(v)])
+      );
+    }
+    return val;
+  };
+  if (req.body) req.body = sanitize(req.body);
+  next();
+});
+
 app.use(compression());
 app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 
@@ -58,7 +78,7 @@ if (config.NODE_ENV !== 'test') {
 
 // Global rate limiter
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
+  windowMs: 15 * 60 * 1000,
   max: 1000,
   standardHeaders: true,
   legacyHeaders: false,
@@ -70,8 +90,8 @@ app.use('/api/', limiter);
 app.get('/health', async (req, res) => {
   try {
     await prisma.$queryRaw`SELECT 1`;
-    res.json({ 
-      status: 'healthy', 
+    res.json({
+      status: 'healthy',
       timestamp: new Date().toISOString(),
       version: process.env.npm_package_version || '1.0.0',
     });
@@ -93,14 +113,10 @@ app.use(errorHandler);
 // Start server
 const startServer = async () => {
   try {
-    // Connect to Redis
     await connectRedis();
     logger.info('Redis connected');
-
-    // Test database connection
     await prisma.$connect();
     logger.info('Database connected');
-
     app.listen(config.PORT, () => {
       logger.info(`🚀 Construction ERP Server running on port ${config.PORT}`);
       logger.info(`📚 API Documentation: http://localhost:${config.PORT}/api/docs`);
@@ -112,7 +128,6 @@ const startServer = async () => {
   }
 };
 
-// Graceful shutdown
 process.on('SIGTERM', async () => {
   logger.info('SIGTERM received, shutting down gracefully');
   await prisma.$disconnect();
