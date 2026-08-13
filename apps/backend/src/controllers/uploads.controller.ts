@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { Response } from 'express';
 import path from 'path';
 import fs from 'fs';
@@ -35,7 +36,7 @@ export const uploadFile = async (req: AuthRequest, res: Response): Promise<void>
 
     const record = await prisma.upload.create({
       data: {
-        id: crypto.randomUUID(),
+        id: randomUUID(),
         projectId: projectId || null,
         module,
         category: category || null,
@@ -180,3 +181,4 @@ export const deleteUpload = async (req: AuthRequest, res: Response): Promise<voi
     sendError(res, 'Failed to delete file', 500);
   }
 };
+

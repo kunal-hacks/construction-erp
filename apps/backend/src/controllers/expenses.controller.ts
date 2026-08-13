@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { Response } from 'express';
 import { prisma } from '../config/database';
 import { sendSuccess, sendCreated, sendError, sendNotFound, sendPaginatedSuccess, getPagination } from '../utils/response';
@@ -85,7 +86,7 @@ export const createExpense = async (req: AuthRequest, res: Response): Promise<vo
 
     const expense = await prisma.expense.create({
       data: {
-        id: crypto.randomUUID(),
+        id: randomUUID(),
         projectId,
         userId: req.user!.id,
         title,
@@ -204,3 +205,4 @@ export const getExpenseSummary = async (req: AuthRequest, res: Response): Promis
     sendError(res, 'Failed to fetch summary', 500);
   }
 };
+

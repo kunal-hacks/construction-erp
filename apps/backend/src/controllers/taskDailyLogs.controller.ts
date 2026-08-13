@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { Response } from 'express';
 import { prisma } from '../config/database';
 import { sendSuccess, sendCreated, sendError, sendNotFound } from '../utils/response';
@@ -60,7 +61,7 @@ export const createTaskDailyLog = async (req: AuthRequest, res: Response): Promi
     const result = await prisma.$transaction(async (tx) => {
       const log = await tx.taskDailyLog.create({
         data: {
-          id: crypto.randomUUID(),
+          id: randomUUID(),
           taskId,
           logDate: new Date(logDate),
           reportedPercent: Number(reportedPercent),
@@ -68,7 +69,7 @@ export const createTaskDailyLog = async (req: AuthRequest, res: Response): Promi
           createdBy: req.user!.id,
           TaskDailyLogWorker: {
             create: workers.map((w: any) => ({
-              id: crypto.randomUUID(),
+              id: randomUUID(),
               workerId: w.workerId || null,
               newWorkerName: w.newWorkerName || null,
               role: w.role,
@@ -79,7 +80,7 @@ export const createTaskDailyLog = async (req: AuthRequest, res: Response): Promi
           // (Electrical etc.), per Decision #2.
           TaskDailyLogMaterial: materialsUsed && materialsUsed.length > 0 ? {
             create: materialsUsed.map((m: any) => ({
-              id: crypto.randomUUID(),
+              id: randomUUID(),
               materialId: m.materialId,
               quantityUsed: Number(m.quantityUsed),
             })),
@@ -116,7 +117,7 @@ export const createTaskDailyLog = async (req: AuthRequest, res: Response): Promi
             });
             await tx.stockMovement.create({
               data: {
-                id: crypto.randomUUID(),
+                id: randomUUID(),
                 inventoryItemId: inventoryItem.id,
                 movementType: 'OUT',
                 quantity: Number(m.quantityUsed),
@@ -173,3 +174,4 @@ export const reviewTask = async (req: AuthRequest, res: Response): Promise<void>
     sendError(res, 'Failed to review task', 500);
   }
 };
+

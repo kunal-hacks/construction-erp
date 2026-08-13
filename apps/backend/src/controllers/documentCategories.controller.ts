@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { Response } from 'express';
 import { prisma } from '../config/database';
 import { sendSuccess, sendCreated, sendError } from '../utils/response';
@@ -37,7 +38,7 @@ export const createDocumentCategory = async (req: AuthRequest, res: Response): P
     }
 
     const category = await prisma.documentCategory.create({
-      data: { id: crypto.randomUUID(), module, name, createdBy: req.user!.id },
+      data: { id: randomUUID(), module, name, createdBy: req.user!.id },
     });
     sendCreated(res, category, 'Category created successfully');
   } catch (error) {
@@ -45,3 +46,4 @@ export const createDocumentCategory = async (req: AuthRequest, res: Response): P
     sendError(res, 'Failed to create category', 500);
   }
 };
+

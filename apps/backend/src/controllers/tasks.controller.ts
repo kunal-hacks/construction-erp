@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { Response } from 'express';
 import { TaskStatus, TaskPriority } from '@prisma/client';
 import { prisma } from '../config/database';
@@ -98,7 +99,7 @@ export const createTask = async (req: AuthRequest, res: Response): Promise<void>
 
     const task = await prisma.task.create({
       data: {
-        id: crypto.randomUUID(),
+        id: randomUUID(),
         projectId,
         title,
         description: description || null,
@@ -124,7 +125,7 @@ export const createTask = async (req: AuthRequest, res: Response): Promise<void>
     if (assigneeId && assigneeId !== req.user!.id) {
       await prisma.notification.create({
         data: {
-          id: crypto.randomUUID(),
+          id: randomUUID(),
           userId: assigneeId,
           title: 'New Task Assigned',
           message: `You have been assigned to task: ${title}`,
@@ -227,7 +228,7 @@ export const addComment = async (req: AuthRequest, res: Response): Promise<void>
   try {
     const { content } = req.body;
     const comment = await prisma.taskComment.create({
-      data: { id: crypto.randomUUID(), taskId: req.params.id, userId: req.user!.id, content },
+      data: { id: randomUUID(), taskId: req.params.id, userId: req.user!.id, content },
       include: { User: { select: { id: true, firstName: true, lastName: true, avatar: true } } },
     });
     sendCreated(res, { ...comment, user: comment.User }, 'Comment added');
@@ -298,3 +299,4 @@ export const getTaskMaterialCheck = async (req: AuthRequest, res: Response): Pro
     sendError(res, error.message || 'Failed to check materials', 500);
   }
 };
+

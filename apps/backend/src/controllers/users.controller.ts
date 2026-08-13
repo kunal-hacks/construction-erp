@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import { Role } from '@prisma/client';
@@ -86,7 +87,7 @@ export const createUser = async (req: AuthRequest, res: Response): Promise<void>
 
     const user = await prisma.user.create({
       data: {
-        id: crypto.randomUUID(),
+        id: randomUUID(),
         email: email.toLowerCase(),
         password: hashedPassword,
         firstName,
@@ -234,3 +235,4 @@ export const resetUserPassword = async (req: AuthRequest, res: Response): Promis
     sendError(res, 'Failed to reset password', 500);
   }
 };
+

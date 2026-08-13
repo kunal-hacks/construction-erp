@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { Response } from 'express';
 import { prisma } from '../config/database';
 import { sendSuccess, sendCreated, sendError, sendNotFound, sendPaginatedSuccess, getPagination } from '../utils/response';
@@ -67,7 +68,7 @@ export const uploadDocument = async (req: AuthRequest, res: Response): Promise<v
     const uploadsDir = path.join(process.cwd(), 'uploads');
     if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 
-    const fileName = `${crypto.randomUUID()}-${req.file.originalname.replace(/\s+/g, '_')}`;
+    const fileName = `${randomUUID()}-${req.file.originalname.replace(/\s+/g, '_')}`;
     const filePath = path.join(uploadsDir, fileName);
     fs.writeFileSync(filePath, req.file.buffer);
 
@@ -75,7 +76,7 @@ export const uploadDocument = async (req: AuthRequest, res: Response): Promise<v
 
     const doc = await prisma.document.create({
       data: {
-        id: crypto.randomUUID(),
+        id: randomUUID(),
         name: title || req.file.originalname,   // schema: name
         fileUrl,                                  // schema: fileUrl
         fileType: req.file.mimetype,              // schema: fileType
@@ -132,3 +133,4 @@ export const deleteDocument = async (req: AuthRequest, res: Response): Promise<v
     sendError(res, 'Failed to delete document', 500);
   }
 };
+

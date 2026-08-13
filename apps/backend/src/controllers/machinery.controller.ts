@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { Response } from 'express';
 import { prisma } from '../config/database';
 import { sendSuccess, sendCreated, sendError, sendNotFound, sendPaginatedSuccess, getPagination } from '../utils/response';
@@ -70,7 +71,7 @@ export const createMachineryLog = async (req: AuthRequest, res: Response): Promi
 
     const log = await prisma.machineryLog.create({
       data: {
-        id: crypto.randomUUID(),
+        id: randomUUID(),
         machineryName,
         projectId,
         logDate: new Date(logDate),
@@ -242,3 +243,4 @@ export const transferMachineryToExpense = async (req: AuthRequest, res: Response
     sendError(res, 'Failed to transfer to expenses', 500);
   }
 };
+

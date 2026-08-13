@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { Response } from 'express';
 import { prisma } from '../config/database';
 import { sendSuccess, sendCreated, sendError, sendNotFound } from '../utils/response';
@@ -53,7 +54,7 @@ export const createTaskType = async (req: AuthRequest, res: Response): Promise<v
 
     const taskType = await prisma.taskType.create({
       data: {
-        id: crypto.randomUUID(),
+        id: randomUUID(),
         name,
         trade,
         unit,
@@ -64,7 +65,7 @@ export const createTaskType = async (req: AuthRequest, res: Response): Promise<v
         sourceCitation: sourceCitation || null,
         MaterialCoefficient: {
           create: (materials || []).map((m: { materialId: string; qtyPerUnit: number }) => ({
-            id: crypto.randomUUID(),
+            id: randomUUID(),
             materialId: m.materialId,
             qtyPerUnit: Number(m.qtyPerUnit),
           })),
@@ -129,7 +130,7 @@ export const upsertMaterialCoefficient = async (req: AuthRequest, res: Response)
           data: { qtyPerUnit: Number(qtyPerUnit) },
         })
       : await prisma.materialCoefficient.create({
-          data: { id: crypto.randomUUID(), taskTypeId, materialId, qtyPerUnit: Number(qtyPerUnit) },
+          data: { id: randomUUID(), taskTypeId, materialId, qtyPerUnit: Number(qtyPerUnit) },
         });
 
     sendSuccess(res, result, 'Material coefficient saved');
@@ -148,3 +149,4 @@ export const deleteMaterialCoefficient = async (req: AuthRequest, res: Response)
     sendError(res, 'Failed to remove material coefficient', 500);
   }
 };
+

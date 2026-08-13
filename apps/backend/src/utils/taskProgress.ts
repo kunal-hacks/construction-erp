@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { prisma } from '../config/database';
 
 // NEW single deduction path — used by Daily Reports for every material
@@ -32,7 +33,7 @@ export async function deductMaterial(params: {
   } else {
     inventoryItem = await tx.inventoryItem.create({
       data: {
-        id: crypto.randomUUID(),
+        id: randomUUID(),
         projectId,
         materialId,
         quantity: -quantity,
@@ -45,7 +46,7 @@ export async function deductMaterial(params: {
 
   await tx.stockMovement.create({
     data: {
-      id: crypto.randomUUID(),
+      id: randomUUID(),
       inventoryItemId: inventoryItem.id,
       movementType: 'OUT',
       quantity,

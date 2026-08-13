@@ -5,6 +5,7 @@ import { AuthRequest } from '../middleware/auth';
 import { logger } from '../utils/logger';
 import { getUserProjectIds } from '../middleware/projectScope';
 import { deductMaterial } from '../utils/taskProgress';
+import { randomUUID } from 'crypto';
 
 const normalize = (r: Record<string, unknown>) => ({
   ...r,
@@ -175,7 +176,7 @@ export const createDailyReport = async (req: AuthRequest, res: Response): Promis
     const result = await prisma.$transaction(async (tx) => {
       const report = await tx.dailyReport.create({
         data: {
-          id: crypto.randomUUID(),
+          id: randomUUID(),
           projectId,
           taskId: taskId || null,
           userId: req.user!.id,
@@ -192,7 +193,7 @@ export const createDailyReport = async (req: AuthRequest, res: Response): Promis
           updatedAt: new Date(),
           DailyReportWorker: (workers || []).length > 0 ? {
             create: workers.map((w: any) => ({
-              id: crypto.randomUUID(),
+              id: randomUUID(),
               name: w.name,
               workerId: w.workerId || null,
               role: w.role,
@@ -201,7 +202,7 @@ export const createDailyReport = async (req: AuthRequest, res: Response): Promis
           } : undefined,
           DailyReportMaterial: materialsUsed && materialsUsed.length > 0 ? {
             create: materialsUsed.map((m: any) => ({
-              id: crypto.randomUUID(),
+              id: randomUUID(),
               materialId: m.materialId,
               quantityUsed: Number(m.quantityUsed),
             })),
@@ -224,7 +225,7 @@ export const createDailyReport = async (req: AuthRequest, res: Response): Promis
         if (w.workerId) {
           await tx.attendance.create({
             data: {
-              id: crypto.randomUUID(),
+              id: randomUUID(),
               date: new Date(reportDate),
               present: true,
               hoursWorked: 8,
@@ -264,7 +265,11 @@ export const createDailyReport = async (req: AuthRequest, res: Response): Promis
       await tx.project.update({ where: { id: projectId }, data: { progress, updatedAt: new Date() } });
 
       return { report, warnings };
-    });
+  }, {
+    maxWait: 15000,
+    timeout: 60000,
+  });
+    
 
     sendCreated(res, { ...normalize(result.report as unknown as Record<string, unknown>), warnings: result.warnings }, 'Daily report submitted successfully');
   } catch (error: any) {

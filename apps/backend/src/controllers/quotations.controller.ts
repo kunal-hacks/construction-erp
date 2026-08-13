@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { Response } from 'express';
 import { prisma } from '../config/database';
 import { sendSuccess, sendCreated, sendError, sendPaginatedSuccess, getPagination } from '../utils/response';
@@ -90,7 +91,7 @@ export const createQuotation = async (req: AuthRequest, res: Response): Promise<
 
     const quotation = await prisma.quotation.create({
       data: {
-        id: crypto.randomUUID(),
+        id: randomUUID(),
         quotationNo,
         vendorId,
         projectId, // always set — required FK
@@ -113,7 +114,7 @@ export const createQuotation = async (req: AuthRequest, res: Response): Promise<
               const rate = Number(item.rate ?? item.unitPrice ?? 0);
               const qty = Number(item.quantity);
               return {
-                id: crypto.randomUUID(),
+                id: randomUUID(),
                 materialId: item.materialId,
                 quantity: qty,
                 unitPrice: rate,
@@ -140,3 +141,4 @@ export const createQuotation = async (req: AuthRequest, res: Response): Promise<
     sendError(res, error?.message || 'Failed to create quotation', 500);
   }
 };
+

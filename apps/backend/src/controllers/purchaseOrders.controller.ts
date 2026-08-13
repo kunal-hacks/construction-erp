@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { Response } from 'express';
 import { POStatus } from '@prisma/client';
 import { prisma } from '../config/database';
@@ -93,7 +94,7 @@ export const createPurchaseOrder = async (req: AuthRequest, res: Response): Prom
 
     const po = await prisma.purchaseOrder.create({
       data: {
-        id: crypto.randomUUID(),
+        id: randomUUID(),
         poNumber,
         projectId,
         vendorId,
@@ -108,7 +109,7 @@ export const createPurchaseOrder = async (req: AuthRequest, res: Response): Prom
             unitPrice: number;
             notes?: string;
           }) => ({
-            id: crypto.randomUUID(),
+            id: randomUUID(),
             materialId: item.materialId,
             quantity: Number(item.quantity),
             unitPrice: Number(item.unitPrice),
@@ -236,7 +237,7 @@ export const recordGoodsReceipt = async (req: AuthRequest, res: Response): Promi
         } else {
           const created = await tx.inventoryItem.create({
             data: {
-              id: crypto.randomUUID(),
+              id: randomUUID(),
               projectId: po.projectId,
               materialId: item.materialId,
               quantity: Number(item.quantity),
@@ -251,7 +252,7 @@ export const recordGoodsReceipt = async (req: AuthRequest, res: Response): Promi
         // Create stock IN movement
         await tx.stockMovement.create({
           data: {
-            id: crypto.randomUUID(),
+            id: randomUUID(),
             inventoryItemId,
             movementType: 'IN',
             quantity: Number(item.quantity),
@@ -288,3 +289,4 @@ export const recordGoodsReceipt = async (req: AuthRequest, res: Response): Promi
     sendError(res, 'Failed to record goods receipt', 500);
   }
 };
+

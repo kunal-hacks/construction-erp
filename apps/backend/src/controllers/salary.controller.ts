@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { Response } from 'express';
 import { SalaryStatus } from '@prisma/client';
 import { prisma } from '../config/database';
@@ -72,7 +73,7 @@ export const generateSalary = async (req: AuthRequest, res: Response): Promise<v
 
         return prisma.salary.create({
           data: {
-            id: crypto.randomUUID(),
+            id: randomUUID(),
             userId: entry.userId || null,
             projectId,
             month: Number(month),
@@ -328,3 +329,4 @@ export const payTempWorkerSalary = async (req: AuthRequest, res: Response): Prom
     sendError(res, 'Failed to record salary payment', 500);
   }
 };
+

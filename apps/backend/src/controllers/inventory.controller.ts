@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { Response } from 'express';
 import { MovementType } from '@prisma/client';
 import { prisma } from '../config/database';
@@ -216,7 +217,7 @@ export const stockIn = async (req: AuthRequest, res: Response): Promise<void> =>
       } else {
         inventoryItem = await tx.inventoryItem.create({
           data: {
-            id: crypto.randomUUID(),
+            id: randomUUID(),
             projectId,
             materialId,
             quantity: Number(quantity),
@@ -229,7 +230,7 @@ export const stockIn = async (req: AuthRequest, res: Response): Promise<void> =>
 
       const movement = await tx.stockMovement.create({
         data: {
-          id: crypto.randomUUID(),
+          id: randomUUID(),
           inventoryItemId: inventoryItem.id,
           movementType: MovementType.IN,
           quantity: Number(quantity),
@@ -241,7 +242,7 @@ export const stockIn = async (req: AuthRequest, res: Response): Promise<void> =>
 
       const expense = await tx.expense.create({
         data: {
-          id: crypto.randomUUID(),
+          id: randomUUID(),
           projectId,
           userId: req.user!.id,
           title: `Material Purchase — ${material.name}`,
@@ -297,7 +298,7 @@ export const stockOut = async (req: AuthRequest, res: Response): Promise<void> =
 
       return tx.stockMovement.create({
         data: {
-          id: crypto.randomUUID(),
+          id: randomUUID(),
           inventoryItemId: inventory.id,
           movementType: MovementType.OUT,
           quantity: Number(quantity),
@@ -393,3 +394,4 @@ export const getMaterialCategories = async (req: AuthRequest, res: Response): Pr
     sendError(res, 'Failed to fetch categories', 500);
   }
 };
+

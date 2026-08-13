@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { Response } from 'express';
 import { prisma } from '../config/database';
 import { sendSuccess, sendCreated, sendError, sendPaginatedSuccess, getPagination } from '../utils/response';
@@ -70,7 +71,7 @@ export const createLabour = async (req: AuthRequest, res: Response): Promise<voi
 
     const worker = await prisma.worker.create({
       data: {
-        id: crypto.randomUUID(),
+        id: randomUUID(),
         name,
         phone: phone || null,
         aadharNo: aadharNumber || null,
@@ -119,7 +120,7 @@ export const assignWorkerToProject = async (req: AuthRequest, res: Response): Pr
     if (existing) { sendError(res, 'Worker is already assigned to this project', 409); return; }
 
     const link = await prisma.workerProject.create({
-      data: { id: crypto.randomUUID(), workerId: id, projectId },
+      data: { id: randomUUID(), workerId: id, projectId },
       include: { Project: { select: { id: true, name: true } } },
     });
 
@@ -167,7 +168,7 @@ export const recordAttendance = async (req: AuthRequest, res: Response): Promise
 
     const attendance = await prisma.attendance.create({
       data: {
-        id: crypto.randomUUID(),
+        id: randomUUID(),
         workerId: labourId,
         projectId: effectiveProjectId,
         date: new Date(date),
@@ -229,7 +230,7 @@ export const createContractor = async (req: AuthRequest, res: Response): Promise
     const { name, phone, gstNumber, address, email, specialty } = req.body;
     const contractor = await prisma.contractor.create({
       data: {
-        id: crypto.randomUUID(), name, phone, email: email || null,
+        id: randomUUID(), name, phone, email: email || null,
         gstNumber: gstNumber || null, specialty: specialty || null, company: null, isActive: true,
       },
     });
@@ -238,3 +239,4 @@ export const createContractor = async (req: AuthRequest, res: Response): Promise
     sendError(res, 'Failed to create contractor', 500);
   }
 };
+

@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { prisma } from '../config/database';
 import crypto from 'crypto';
 
@@ -22,7 +23,7 @@ export async function createCostTransfer(params: {
   return prisma.$transaction(async (tx) => {
     const expense = await tx.expense.create({
       data: {
-        id: crypto.randomUUID(),
+        id: randomUUID(),
         projectId,
         userId,
         title: expenseTitle || `${moduleLabel} Payment — ${projectName}`,
@@ -39,7 +40,7 @@ export async function createCostTransfer(params: {
 
     const transfer = await tx.costTransfer.create({
       data: {
-        id: crypto.randomUUID(),
+        id: randomUUID(),
         projectId,
         module,
         workerId: workerId || null,
@@ -83,3 +84,4 @@ export async function getTempWorkerPaidTotal(workerName: string, projectId: stri
   });
   return result._sum.amount || 0;
 }
+

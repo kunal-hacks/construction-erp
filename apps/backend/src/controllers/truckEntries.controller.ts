@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { Response } from 'express';
 import { prisma } from '../config/database';
 import { sendSuccess, sendCreated, sendError, sendNotFound, sendPaginatedSuccess, getPagination } from '../utils/response';
@@ -78,7 +79,7 @@ export const createTruckEntry = async (req: AuthRequest, res: Response): Promise
 
     const entry = await prisma.truckEntry.create({
       data: {
-        id: crypto.randomUUID(),
+        id: randomUUID(),
         projectId,
         vehicleNo: vehicleNo.toUpperCase(),
         driverName,
@@ -274,3 +275,4 @@ export const transferTruckEntriesToExpense = async (req: AuthRequest, res: Respo
     sendError(res, 'Failed to transfer to expenses', 500);
   }
 };
+
