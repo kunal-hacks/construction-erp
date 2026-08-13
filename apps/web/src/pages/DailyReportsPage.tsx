@@ -100,6 +100,19 @@ const DailyReportsPage: React.FC = () => {
     setDimComponents([]);
   }, [formTaskId]);
 
+  // Auto-fills the materials list the moment a valid completion % check
+  // comes back for a standard task — no manual trigger needed. Only fires
+  // for standard trades; manual/no-standard tasks keep an empty, freely
+  // editable list as before.
+  useEffect(() => {
+    if (selectedTask?.taskType?.hasStandard && materialCheck?.materials?.length) {
+      replaceMaterials(materialCheck.materials.map((m: any) => ({
+        materialId: m.materialId, quantityUsed: m.qtyNeeded.toFixed(2),
+      })));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [materialCheck]);
+
   const setDimensionsMutation = useMutation({
     mutationFn: (comps: object[]) => tasksApi.update(formTaskId as string, { components: comps }),
     onSuccess: () => {
@@ -163,13 +176,6 @@ const DailyReportsPage: React.FC = () => {
       setValue(`workers.${index}.workerId`, '');
     }
     setActiveNameDropdown(null);
-  };
-
-  const useSuggestedMaterials = () => {
-    if (!materialCheck?.materials?.length) return;
-    replaceMaterials(materialCheck.materials.map((m: any) => ({
-      materialId: m.materialId, quantityUsed: m.qtyNeeded.toFixed(2),
-    })));
   };
 
   const closeCreate = () => {
@@ -429,35 +435,27 @@ const DailyReportsPage: React.FC = () => {
             )}
           </div>
 
-          {/* Materials */}
+          {/* Materials — auto-populated the moment a valid completion % is
+              entered for a standard task, no manual trigger needed. Still
+              fully editable afterward, and manual/no-standard tasks keep
+              the "+ Add Material" flow. */}
           {formTaskId && (
             <div>
               <div className="flex items-center justify-between mb-2">
                 <label className="label text-xs flex items-center gap-1.5">
                   <HiOutlineCube className="w-3.5 h-3.5" /> Materials Used
                   {selectedTask && !selectedTask.taskType?.hasStandard && <span className="text-amber-600">(required — no standard for this trade)</span>}
+                  {selectedTask?.taskType?.hasStandard && checkingMaterials && <span className="text-gray-400 font-normal">(calculating...)</span>}
                 </label>
-                <div className="flex items-center gap-3">
-                  {selectedTask?.taskType?.hasStandard && (
-                    <button
-                      type="button"
-                      onClick={useSuggestedMaterials}
-                      disabled={!completionPctValue || Number(completionPctValue) <= (selectedTask.cumulativePercent || 0) || checkingMaterials}
-                      className="text-xs text-primary-600 hover:underline disabled:opacity-40 disabled:no-underline"
-                    >
-                      {checkingMaterials ? 'Calculating...' : 'Use Suggested Amounts'}
-                    </button>
-                  )}
-                  <button type="button" onClick={() => appendMaterial({ materialId: '', quantityUsed: '' })} className="text-xs text-primary-600 hover:underline">
-                    + Add Material
-                  </button>
-                </div>
+                <button type="button" onClick={() => appendMaterial({ materialId: '', quantityUsed: '' })} className="text-xs text-primary-600 hover:underline">
+                  + Add Material
+                </button>
               </div>
 
               {materialFields.length === 0 && (
                 <p className="text-xs text-gray-400 italic">
                   {selectedTask?.taskType?.hasStandard
-                    ? `Click "Use Suggested Amounts" above to auto-fill from ${completionPctValue ? `the ${completionPctValue}% you entered` : 'the completion % you enter'}, then adjust if needed.`
+                    ? `Enter a completion % above ${selectedTask.cumulativePercent}% to auto-calculate material required.`
                     : 'Add materials actually used today.'}
                 </p>
               )}

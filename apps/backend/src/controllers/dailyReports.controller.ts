@@ -267,7 +267,7 @@ export const createDailyReport = async (req: AuthRequest, res: Response): Promis
       return { report, warnings };
   }, {
     maxWait: 15000,
-    timeout: 60000,
+    timeout: 100000,
   });
     
 

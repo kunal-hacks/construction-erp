@@ -1,32 +1,33 @@
 import React, { useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './store/authStore';
-import DashboardLayout from './components/layout/DashboardLayout';
-import LoginPage from './pages/LoginPage';
-import DashboardPage from './pages/DashboardPage';
-import PMDashboardPage from './pages/PMDashboardPage';
-import ProjectsPage from './pages/ProjectsPage';
-import ProjectDetailPage from './pages/ProjectDetailPage';
-import ExpensesPage from './pages/ExpensesPage';
-import DailyReportsPage from './pages/DailyReportsPage';
-import InventoryPage from './pages/InventoryPage';
-import TruckEntriesPage from './pages/TruckEntriesPage';
-import MachineryPage from './pages/MachineryPage';
-import VendorsPage from './pages/VendorsPage';
-import PurchaseOrdersPage from './pages/PurchaseOrdersPage';
-import TasksPage from './pages/TasksPage';
-import TaskDetailPage from './pages/TaskDetailPage';
-import AnalyticsPage from './pages/AnalyticsPage';
-import DocumentsPage from './pages/DocumentsPage';
-import UsersPage from './pages/UsersPage';
-import TaskTypesPage from './pages/TaskTypesPage';
-import LabourPage from './pages/LabourPage';
-import SalaryPage from './pages/SalaryPage';
-import AuditLogsPage from './pages/AuditLogsPage';
-import QuotationsPage from './pages/QuotationsPage';
-import ProfilePage from './pages/ProfilePage';
-import NotFoundPage from './pages/NotFoundPage';
 
+const DashboardLayout = React.lazy(() => import('./components/layout/DashboardLayout'));
+const LoginPage = React.lazy(() => import('./pages/LoginPage'));
+
+const DashboardPage = React.lazy(() => import('./pages/DashboardPage'));
+const PMDashboardPage = React.lazy(() => import('./pages/PMDashboardPage'));
+const ProjectsPage = React.lazy(() => import('./pages/ProjectsPage'));
+const ProjectDetailPage = React.lazy(() => import('./pages/ProjectDetailPage'));
+const ExpensesPage = React.lazy(() => import('./pages/ExpensesPage'));
+const DailyReportsPage = React.lazy(() => import('./pages/DailyReportsPage'));
+const InventoryPage = React.lazy(() => import('./pages/InventoryPage'));
+const TruckEntriesPage = React.lazy(() => import('./pages/TruckEntriesPage'));
+const MachineryPage = React.lazy(() => import('./pages/MachineryPage'));
+const VendorsPage = React.lazy(() => import('./pages/VendorsPage'));
+const PurchaseOrdersPage = React.lazy(() => import('./pages/PurchaseOrdersPage'));
+const TasksPage = React.lazy(() => import('./pages/TasksPage'));
+const TaskDetailPage = React.lazy(() => import('./pages/TaskDetailPage'));
+const AnalyticsPage = React.lazy(() => import('./pages/AnalyticsPage'));
+const DocumentsPage = React.lazy(() => import('./pages/DocumentsPage'));
+const UsersPage = React.lazy(() => import('./pages/UsersPage'));
+const TaskTypesPage = React.lazy(() => import('./pages/TaskTypesPage'));
+const LabourPage = React.lazy(() => import('./pages/LabourPage'));
+const SalaryPage = React.lazy(() => import('./pages/SalaryPage'));
+const AuditLogsPage = React.lazy(() => import('./pages/AuditLogsPage'));
+const QuotationsPage = React.lazy(() => import('./pages/QuotationsPage'));
+const ProfilePage = React.lazy(() => import('./pages/ProfilePage'));
+const NotFoundPage = React.lazy(() => import('./pages/NotFoundPage'));
 const ADMIN_ROLES = ['SUPER_ADMIN', 'ADMIN'];
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -52,11 +53,15 @@ const App: React.FC = () => {
   }, []);
 
   return (
+  <React.Suspense fallback={<div>Loading...</div>}>
     <Routes>
       <Route
         path="/login"
-        element={isAuthenticated ? <Navigate to="/" replace /> : <LoginPage />}
+        element={
+          isAuthenticated ? <Navigate to="/" replace /> : <LoginPage />
+        }
       />
+
       <Route
         path="/"
         element={
@@ -85,11 +90,9 @@ const App: React.FC = () => {
         <Route path="truck-entries" element={<TruckEntriesPage />} />
         <Route path="documents" element={<DocumentsPage />} />
         <Route path="profile" element={<ProfilePage />} />
-        <Route path="pmdashboard" element={<PMDashboardPage/>} />
+        <Route path="pmdashboard" element={<PMDashboardPage />} />
 
-        {/* Every authenticated user reaches these — backend scopes the DATA to
-            the caller's assigned projects (admins get everything, PMs get their own).
-            No route-level admin gate here anymore; the API is the enforcement point. */}
+        {/* Authenticated users — backend scopes the data */}
         <Route path="inventory" element={<InventoryPage />} />
         <Route path="machinery" element={<MachineryPage />} />
         <Route path="purchase-orders" element={<PurchaseOrdersPage />} />
@@ -99,15 +102,39 @@ const App: React.FC = () => {
         <Route path="salary" element={<SalaryPage />} />
         <Route path="analytics" element={<AnalyticsPage />} />
 
-        {/* System-administration pages — these concern managing the software itself
-            (who has accounts, security trail), not project data, so they stay admin-only */}
-        <Route path="users" element={<AdminRoute><UsersPage /></AdminRoute>} />
-        <Route path="audit-logs" element={<AdminRoute><AuditLogsPage /></AdminRoute>} />
-        <Route path="task-types" element={<AdminRoute><TaskTypesPage /></AdminRoute>} />
+        {/* System administration — admin only */}
+        <Route
+          path="users"
+          element={
+            <AdminRoute>
+              <UsersPage />
+            </AdminRoute>
+          }
+        />
+
+        <Route
+          path="audit-logs"
+          element={
+            <AdminRoute>
+              <AuditLogsPage />
+            </AdminRoute>
+          }
+        />
+
+        <Route
+          path="task-types"
+          element={
+            <AdminRoute>
+              <TaskTypesPage />
+            </AdminRoute>
+          }
+        />
       </Route>
+
       <Route path="*" element={<NotFoundPage />} />
     </Routes>
-  );
+  </React.Suspense>
+);
 };
 
 export default App;
