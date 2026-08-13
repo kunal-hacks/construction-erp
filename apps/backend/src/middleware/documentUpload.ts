@@ -1,6 +1,6 @@
 import multer from 'multer';
 import path from 'path';
-import crypto from 'crypto';
+import {randomUUID} from 'crypto';
 import { prisma } from '../config/database';
 import { buildUploadDir, ensureDir } from '../utils/uploadPaths';
 
