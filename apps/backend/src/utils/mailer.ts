@@ -30,7 +30,7 @@ export const sendUserInviteEmail = async ({
   firstName,
   resetToken,
 }: SendUserInviteEmailParams): Promise<void> => {
-  const setPasswordUrl = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
+  const setPasswordUrl = `${process.env.FRONTEND_URL}/set-password?token=${resetToken}`;
 
   const html = `
     <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto;">
