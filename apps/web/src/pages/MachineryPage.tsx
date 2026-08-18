@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { machineryApi, projectsApi } from '../api/services';
+import { machineryApi, projectsApi, uploadsApi, getFileViewUrl, viewSecureFile } from '../api/services';
 import {
   PageHeader, Modal, FormField, SearchInput, Pagination,
   LoadingSpinner, EmptyState, ConfirmDialog
@@ -8,9 +8,102 @@ import {
 import { useForm } from 'react-hook-form';
 import { formatError } from '../api/client';
 import toast from 'react-hot-toast';
-import { HiOutlinePlus, HiOutlineWrenchScrewdriver, HiOutlinePencil, HiOutlineTrash } from 'react-icons/hi2';
+import {
+  HiOutlinePlus, HiOutlineWrenchScrewdriver, HiOutlinePencil, HiOutlineTrash,
+  HiOutlineDocument, HiOutlineXMark, HiOutlineEye, HiOutlineCloudArrowUp
+} from 'react-icons/hi2';
 
 const todayDateStr = () => new Date().toISOString().split('T')[0];
+
+// Attachments (bills, service reports, photos) tied to one machinery log via
+// the generic Upload table's relatedType/relatedId — same pattern the schema
+// comment already called out. Only usable once the log has an id, so this
+// renders inside the edit modal only.
+const LogAttachments: React.FC<{ logId: string }> = ({ logId }) => {
+  const qc = useQueryClient();
+  const [progress, setProgress] = useState<number | null>(null);
+  const [opening, setOpening] = useState<string | null>(null);
+
+  const { data } = useQuery({
+    queryKey: ['machinery-log-attachments', logId],
+    queryFn: () => uploadsApi.list({ relatedType: 'machinery-log', relatedId: logId }),
+  });
+  const attachments = data?.data?.data || [];
+
+  const uploadMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const formData = new FormData();
+      formData.append('module', 'machinery');
+      formData.append('relatedType', 'machinery-log');
+      formData.append('relatedId', logId);
+      formData.append('file', file);
+      return uploadsApi.upload(formData, setProgress);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['machinery-log-attachments', logId] });
+      toast.success('Document attached!');
+      setProgress(null);
+    },
+    onError: (e: any) => { toast.error(formatError(e) || 'Upload failed'); setProgress(null); },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => uploadsApi.delete(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['machinery-log-attachments', logId] });
+      toast.success('Attachment removed');
+    },
+    onError: (e: any) => toast.error(formatError(e) || 'Failed to remove'),
+  });
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    uploadMutation.mutate(file);
+    e.target.value = '';
+  };
+
+  const handleView = async (uploadId: string) => {
+    setOpening(uploadId);
+    try {
+      await viewSecureFile(getFileViewUrl(uploadId));
+    } catch (e: any) {
+      toast.error(formatError(e) || 'Failed to open file');
+    } finally {
+      setOpening(null);
+    }
+  };
+
+  return (
+    <div>
+      <label className="label text-xs">Attachments (bills, service reports, photos)</label>
+      <div className="space-y-2">
+        {attachments.map((a: any) => (
+          <div key={a.id} className="flex items-center gap-2 border border-gray-200 dark:border-gray-700 rounded-lg p-2.5">
+            <HiOutlineDocument className="w-5 h-5 text-primary-600 flex-shrink-0" />
+            <span className="text-sm text-gray-700 dark:text-gray-300 truncate flex-1">{a.originalName}</span>
+            <button type="button" onClick={() => handleView(a.id)} disabled={opening === a.id} className="icon-button text-blue-600 flex-shrink-0" title="View">
+              <HiOutlineEye className="w-4 h-4" />
+            </button>
+            <button type="button" onClick={() => deleteMutation.mutate(a.id)} className="icon-button text-red-500 flex-shrink-0" title="Remove">
+              <HiOutlineXMark className="w-4 h-4" />
+            </button>
+          </div>
+        ))}
+
+        <label className={`flex items-center justify-center gap-2 border-2 border-dashed rounded-lg p-3 cursor-pointer text-sm transition-colors ${
+          uploadMutation.isPending ? 'border-primary-300 bg-primary-50 dark:bg-primary-900/10' : 'border-gray-200 dark:border-gray-700 hover:border-primary-300'
+        }`}>
+          <input type="file" className="hidden" onChange={handleFileSelect} disabled={uploadMutation.isPending} />
+          <HiOutlineCloudArrowUp className="w-5 h-5 text-gray-400 flex-shrink-0" />
+          <span className="text-gray-500">
+            {uploadMutation.isPending ? `Uploading... ${progress ?? 0}%` : 'Click to attach a document'}
+          </span>
+        </label>
+      </div>
+    </div>
+  );
+};
 
 const MachineryPage: React.FC = () => {
   const [page, setPage] = useState(1);
@@ -94,10 +187,10 @@ const MachineryPage: React.FC = () => {
         ? machineryApi.updateLog(editingLog.id, payload)
         : machineryApi.createLog(payload);
     },
-    onSuccess: () => {
+    onSuccess: (res: any) => {
       qc.invalidateQueries({ queryKey: ['machinery-logs'] });
       qc.invalidateQueries({ queryKey: ['machinery-summary'] });
-      toast.success(isEditing ? 'Log updated!' : 'Log recorded!');
+      toast.success(isEditing ? 'Log updated!' : 'Log recorded! Reopen it to attach documents.');
       setShowCreate(false); setEditingLog(null); reset();
     },
     onError: (e) => toast.error(formatError(e)),
@@ -390,6 +483,16 @@ const MachineryPage: React.FC = () => {
           <FormField label="Notes">
             <textarea {...register('notes')} rows={2} className="input resize-none" placeholder="Additional notes..." />
           </FormField>
+
+          {/* Document attachments — Cloudinary-backed, tied to this log via
+              relatedType/relatedId. Only available once the log exists. */}
+          {isEditing ? (
+            <LogAttachments logId={editingLog.id} />
+          ) : (
+            <p className="text-xs text-gray-400">
+              Save this log first — you'll be able to attach bills, service reports or photos after reopening it.
+            </p>
+          )}
 
           <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-3">
             <button type="button" onClick={closeCreate} className="btn-secondary w-full sm:w-auto">Cancel</button>

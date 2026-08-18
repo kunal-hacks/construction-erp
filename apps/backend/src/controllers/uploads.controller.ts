@@ -12,7 +12,7 @@ import { uploadBufferToCloudinary, deleteFromCloudinary, getCloudinaryResourceTy
 
 export const uploadFile = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { projectId, module, category } = req.body;
+    const { projectId, module, category, relatedType, relatedId } = req.body;
     const file = req.file;
     if (!file) {
       sendError(res, 'No file uploaded', 400);
@@ -46,6 +46,8 @@ export const uploadFile = async (req: AuthRequest, res: Response): Promise<void>
         mimeType: file.mimetype,
         size: file.size,
         uploadedBy: req.user!.id,
+        relatedType: relatedType || null,
+        relatedId: relatedId || null,
       },
     });
 
@@ -96,7 +98,7 @@ export const getFile = async (req: AuthRequest, res: Response): Promise<void> =>
 
 export const listUploads = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { projectId, module, category } = req.query;
+    const { projectId, module, category, relatedType, relatedId } = req.query;
     const allowedProjectIds = await getUserProjectIds(req);
 
     const where: Record<string, unknown> = {};
@@ -115,6 +117,8 @@ export const listUploads = async (req: AuthRequest, res: Response): Promise<void
     }
     if (module) where.module = module as string;
     if (category) where.category = category as string;
+    if (relatedType) where.relatedType = relatedType as string;
+    if (relatedId) where.relatedId = relatedId as string;
 
     const uploads = await prisma.upload.findMany({
       where,

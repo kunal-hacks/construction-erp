@@ -1,14 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { truckEntriesApi, projectsApi, vendorsApi } from '../api/services';
+import { truckEntriesApi, projectsApi, vendorsApi, getFileViewUrl, viewSecureFile } from '../api/services';
 import {
   PageHeader, Modal, FormField, SearchInput, Pagination,
   LoadingSpinner, EmptyState, ConfirmDialog
 } from '../components/common';
+import ReceiptUploadField from '../components/common/ReceiptUploadField';
 import { useForm } from 'react-hook-form';
 import { formatError } from '../api/client';
 import toast from 'react-hot-toast';
-import { HiOutlinePlus, HiOutlineTruck, HiOutlinePencil, HiOutlineTrash } from 'react-icons/hi2';
+import { HiOutlinePlus, HiOutlineTruck, HiOutlinePencil, HiOutlineTrash, HiOutlineArrowDownTray } from 'react-icons/hi2';
+
+const MODULE = 'truck-entries';
 
 // Used to cap any date/datetime input at "now" — entries are only made on
 // or after work/payment completion, never for a future date.
@@ -65,6 +68,7 @@ const TruckEntriesPage: React.FC = () => {
   const [showTransfer, setShowTransfer] = useState(false);
   const [editingEntry, setEditingEntry] = useState<any>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [currentSlip, setCurrentSlip] = useState<{ id: string; originalName: string } | null>(null);
 
   const qc = useQueryClient();
 
@@ -139,6 +143,7 @@ const TruckEntriesPage: React.FC = () => {
         entryTime: formData.entryTime || new Date().toISOString(),
         exitTime: formData.exitTime || null,
         slipNo: formData.slipNo || null,
+        slipUrl: currentSlip ? getFileViewUrl(currentSlip.id) : (isEditing ? editingEntry.slipUrl || null : null),
         notes: formData.notes || null,
         ratePerTrip: formData.ratePerTrip !== '' ? Number(formData.ratePerTrip) : null,
       };
@@ -150,7 +155,7 @@ const TruckEntriesPage: React.FC = () => {
       qc.invalidateQueries({ queryKey: ['truck-entries'] });
       qc.invalidateQueries({ queryKey: ['truck-summary'] });
       toast.success(isEditing ? 'Entry updated!' : 'Entry recorded!');
-      setShowCreate(false); setEditingEntry(null); reset();
+      setShowCreate(false); setEditingEntry(null); setCurrentSlip(null); reset();
     },
     onError: (e: any) => toast.error(formatError(e)),
   });
@@ -185,6 +190,7 @@ const TruckEntriesPage: React.FC = () => {
 
   const handleEdit = (entry: any) => {
     setEditingEntry(entry);
+    setCurrentSlip(null); // existing slip stays via entry.slipUrl unless replaced
     setValue('projectId', entry.projectId);
     setValue('vehicleNo', entry.vehicleNo);
     setValue('driverName', entry.driverName);
@@ -200,11 +206,27 @@ const TruckEntriesPage: React.FC = () => {
     setShowCreate(true);
   };
 
+  const closeCreate = () => {
+    setShowCreate(false); setEditingEntry(null); setCurrentSlip(null); reset();
+  };
+
   const formatEntryTime = (entryTime: string) => {
     if (!entryTime) return '—';
     const d = new Date(entryTime);
     return isNaN(d.getTime()) ? '—' : d.toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
   };
+  const [openingSlip, setOpeningSlip] = useState<string | null>(null);
+
+const handleViewSlip = async (slipUrl: string, entryId: string) => {
+  setOpeningSlip(entryId);
+  try {
+    await viewSecureFile(slipUrl);
+  } catch (e: any) {
+    toast.error(formatError(e) || 'Failed to open file');
+  } finally {
+    setOpeningSlip(null);
+  }
+};
 
   return (
     <div className="space-y-4 sm:space-y-6 animate-fade-in">
@@ -212,7 +234,7 @@ const TruckEntriesPage: React.FC = () => {
         title="Truck Entry Management"
         subtitle="Vehicle weighment, material delivery and trip cost tracking"
         action={
-          <button onClick={() => { setEditingEntry(null); setShowCreate(true); }} className="btn-primary flex items-center justify-center gap-2 w-full sm:w-auto">
+          <button onClick={() => { setEditingEntry(null); setCurrentSlip(null); setShowCreate(true); }} className="btn-primary flex items-center justify-center gap-2 w-full sm:w-auto">
             <HiOutlinePlus className="w-4 h-4" /> New Entry
           </button>
         }
@@ -305,6 +327,16 @@ const TruckEntriesPage: React.FC = () => {
                       <td className="text-sm text-gray-500 whitespace-nowrap">{e.Project?.name || e.project?.name}</td>
                       <td>
                         <div className="flex gap-2">
+                        {e.slipUrl && (
+  <button
+    onClick={() => handleViewSlip(e.slipUrl, e.id)}
+    disabled={openingSlip === e.id}
+    className="icon-button text-blue-600"
+    title="Slip / Document"
+  >
+    <HiOutlineArrowDownTray className="w-4 h-4" />
+  </button>
+)}
                           <button onClick={() => handleEdit(e)} className="icon-button text-amber-600" title="Edit">
                             <HiOutlinePencil className="w-4 h-4" />
                           </button>
@@ -364,6 +396,15 @@ const TruckEntriesPage: React.FC = () => {
                   <button onClick={() => handleEdit(e)} className="btn-secondary flex-1 justify-center text-xs py-1.5 text-amber-600">
                     <HiOutlinePencil className="w-3.5 h-3.5" /> Edit
                   </button>
+                  {e.slipUrl && (
+  <button
+    onClick={() => handleViewSlip(e.slipUrl, e.id)}
+    disabled={openingSlip === e.id}
+    className="btn-secondary flex-1 justify-center text-xs py-1.5 text-blue-600"
+  >
+    <HiOutlineArrowDownTray className="w-3.5 h-3.5" /> Slip
+  </button>
+)}
                   <button onClick={() => setDeleteId(e.id)} className="btn-secondary flex-1 justify-center text-xs py-1.5 text-red-500">
                     <HiOutlineTrash className="w-3.5 h-3.5" /> Delete
                   </button>
@@ -385,7 +426,7 @@ const TruckEntriesPage: React.FC = () => {
       )}
 
       {/* Create / Edit Modal */}
-      <Modal isOpen={showCreate} onClose={() => { setShowCreate(false); setEditingEntry(null); reset(); }}
+      <Modal isOpen={showCreate} onClose={closeCreate}
         title={isEditing ? 'Edit Truck Entry' : 'New Truck Entry'} size="lg">
         <form onSubmit={handleSubmit(d => saveMutation.mutate(d))} className="p-4 sm:p-6 space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -468,6 +509,30 @@ const TruckEntriesPage: React.FC = () => {
             <FormField label="Net Weight (kg)" required className="sm:col-span-2">
               <input type="number" step="1" {...register('netWeight', { required: true, min: 1 })} className="input" placeholder="18300" />
             </FormField>
+
+            {/* Delivery slip / document upload — same Cloudinary-backed component as Expenses */}
+            <FormField label="" className="sm:col-span-2">
+              <ReceiptUploadField
+                label="Delivery Slip / Document"
+                projectId={undefined}
+                requireProject={false}
+                module={MODULE}
+                value={currentSlip}
+                onChange={setCurrentSlip}
+              />
+             {!currentSlip && isEditing && editingEntry?.slipUrl && (
+  <p className="text-xs text-gray-400 mt-1">
+    Existing file attached —{' '}
+    <button
+      type="button"
+      onClick={() => handleViewSlip(editingEntry.slipUrl, editingEntry.id)}
+      className="text-primary-600 hover:underline"
+    >
+      view it
+    </button>, or upload a new one to replace it.
+  </p>
+)}
+            </FormField>
           </div>
 
           <FormField label="Notes">
@@ -475,7 +540,7 @@ const TruckEntriesPage: React.FC = () => {
           </FormField>
 
           <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-3 pt-4">
-            <button type="button" onClick={() => { setShowCreate(false); setEditingEntry(null); reset(); }} className="btn-secondary w-full sm:w-auto">Cancel</button>
+            <button type="button" onClick={closeCreate} className="btn-secondary w-full sm:w-auto">Cancel</button>
             <button type="submit" disabled={saveMutation.isPending} className="btn-primary w-full sm:w-auto sm:min-w-[140px]">
               {saveMutation.isPending ? 'Saving...' : isEditing ? 'Update Entry' : 'Save Entry'}
             </button>

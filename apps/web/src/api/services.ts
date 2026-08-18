@@ -231,7 +231,7 @@ export const uploadsApi = {
         if (onProgress && e.total) onProgress(Math.round((e.loaded / e.total) * 100));
       },
     }),
-  list: (params?: { projectId?: string; module?: string; category?: string }) =>
+  list: (params?: { projectId?: string; module?: string; category?: string; relatedType?: string; relatedId?: string }) =>
     api.get('/uploads', { params }),
   getModules: () => api.get('/uploads/modules'),
   delete: (id: string) => api.delete(`/uploads/${id}`),
