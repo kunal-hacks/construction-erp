@@ -524,7 +524,7 @@ GET  /auth/profile        - Get current user profile
 PUT  /auth/profile        - Update profile
 PUT  /auth/change-password - Change password
 POST /auth/forgot-password - Request password reset
-POST /auth/reset-password  - Reset password with token
+POST /auth/set-password  - Reset password with token
 ```
 
 #### Projects

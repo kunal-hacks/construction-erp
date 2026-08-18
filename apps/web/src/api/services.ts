@@ -9,7 +9,7 @@ export const authApi = {
   updateProfile: (data: object) => api.put('/auth/profile', data),
   changePassword: (data: object) => api.put('/auth/change-password', data),
   forgotPassword: (email: string) => api.post('/auth/forgot-password', { email }),
-  resetPassword: (data: { token: string; newPassword: string }) => api.post('/auth/reset-password', data),
+  resetPassword: (data: { token: string; newPassword: string }) => api.post('/auth/set-password', data),
 };
 
 // ==================== USERS ====================
@@ -20,7 +20,7 @@ export const usersApi = {
   update: (id: string, data: object) => api.put(`/users/${id}`, data),
   delete: (id: string) => api.delete(`/users/${id}`),
   hardDelete: (id: string) => api.delete(`/users/${id}/permanent`),
-  resetPassword: (id: string, data: object) => api.post(`/users/${id}/reset-password`, data),
+  resetPassword: (id: string, data: object) => api.post(`/users/${id}/set-password`, data),
 };
 
 // ==================== PROJECTS ====================

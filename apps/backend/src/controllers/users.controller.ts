@@ -76,8 +76,8 @@ export const getUserById = async (req: Request, res: Response): Promise<void> =>
 
 // Admin no longer sets the password directly. A random, unusable placeholder
 // is hashed and stored, a passwordResetToken is generated (same field the
-// forgot/reset-password flow already uses), and an invite email is sent so
-// the new user can set their own password via POST /auth/reset-password.
+// forgot/set-password flow already uses), and an invite email is sent so
+// the new user can set their own password via POST /auth/set-password.
 export const createUser = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { email, firstName, lastName, phone, role } = req.body;

@@ -14,6 +14,6 @@ router.post('/', inviteEmailRateLimit, createUser);
 router.put('/:id', updateUser);
 router.delete('/:id', deleteUser);
 router.delete('/:id/permanent', hardDeleteUser);
-router.post('/:id/reset-password', resetUserPassword);
+router.post('/:id/set-password', resetUserPassword);
 
 export default router;
