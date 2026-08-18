@@ -112,18 +112,19 @@ model DailyReportMaterial {
 }
 
 model Document {
-  id          String   @id @default(cuid())
-  name        String
-  fileUrl     String
-  fileType    String
-  fileSize    Int
-  category    String
-  description String?
-  createdAt   DateTime @default(now())
-  projectId   String?
-  uploadedBy  String
-  Project     Project? @relation(fields: [projectId], references: [id])
-  User        User     @relation(fields: [uploadedBy], references: [id])
+  id           String   @id @default(cuid())
+  name         String
+  fileUrl      String   // now stores the Cloudinary secure_url for new uploads
+  cloudinaryId String?  // NEW — Cloudinary public_id, needed to delete the file later
+  fileType     String
+  fileSize     Int
+  category     String
+  description  String?
+  createdAt    DateTime @default(now())
+  projectId    String?
+  uploadedBy   String
+  Project      Project? @relation(fields: [projectId], references: [id])
+  User         User     @relation(fields: [uploadedBy], references: [id])
 }
 
 model Expense {
@@ -652,12 +653,13 @@ model Upload {
   category     String?
   fileName     String
   originalName String
-  filePath     String
+  filePath     String   // now stores the Cloudinary secure_url for new uploads
+  cloudinaryId String?  // NEW — Cloudinary public_id, needed to delete the file later
   mimeType     String
   size         Int
   uploadedBy   String
   createdAt    DateTime @default(now())
-  relatedType String? // "task-daily-log" | "machinery-log" | null
+  relatedType String?
   relatedId   String?
 
   Project Project? @relation(fields: [projectId], references: [id])

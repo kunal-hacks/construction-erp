@@ -24,7 +24,7 @@ const LoginPage: React.FC = () => {
 
   const { register, handleSubmit, formState: { errors } } = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
-    defaultValues: { email: 'admin@erp.com', password: 'Admin@123' },
+    defaultValues: { email: '', password: '' },
   });
 
   const loginMutation = useMutation({

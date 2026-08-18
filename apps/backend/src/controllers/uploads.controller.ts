@@ -2,13 +2,13 @@ import { randomUUID } from 'crypto';
 import { Response } from 'express';
 import path from 'path';
 import fs from 'fs';
-import crypto from 'crypto';
 import { prisma } from '../config/database';
 import { sendSuccess, sendCreated, sendError, sendNotFound } from '../utils/response';
 import { AuthRequest } from '../middleware/auth';
 import { logger } from '../utils/logger';
 import { getUserProjectIds, ADMIN_ROLES } from '../middleware/projectScope';
 import { UPLOAD_ROOT } from '../utils/uploadPaths';
+import { uploadBufferToCloudinary, deleteFromCloudinary, getCloudinaryResourceType } from '../utils/cloudinaryUpload';
 
 export const uploadFile = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
@@ -19,20 +19,19 @@ export const uploadFile = async (req: AuthRequest, res: Response): Promise<void>
       return;
     }
 
-    // Project-scoped uploads (Expenses, Truck Entries, etc.) still enforce
-    // the PM/Admin rule. Project-less uploads (standalone documents on this
-    // page) have nothing to scope against, so any authenticated user may
-    // create them.
     if (projectId) {
       const allowedProjectIds = await getUserProjectIds(req);
       if (allowedProjectIds && !allowedProjectIds.includes(projectId)) {
-        fs.unlink(file.path, () => {}); // clean up the file multer already wrote before rejecting
         sendError(res, 'You do not have access to this project', 403);
         return;
       }
     }
 
-    const relativePath = path.relative(UPLOAD_ROOT, file.path);
+    const resourceType = getCloudinaryResourceType(file.mimetype);
+    const cloudinaryResult = await uploadBufferToCloudinary(file.buffer, {
+      folder: `planning-earth/${module || 'general'}`,
+      resourceType,
+    });
 
     const record = await prisma.upload.create({
       data: {
@@ -40,9 +39,10 @@ export const uploadFile = async (req: AuthRequest, res: Response): Promise<void>
         projectId: projectId || null,
         module,
         category: category || null,
-        fileName: file.filename,
+        fileName: cloudinaryResult.publicId,
         originalName: file.originalname,
-        filePath: relativePath,
+        filePath: cloudinaryResult.secureUrl,
+        cloudinaryId: cloudinaryResult.publicId,
         mimeType: file.mimetype,
         size: file.size,
         uploadedBy: req.user!.id,
@@ -71,15 +71,20 @@ export const getFile = async (req: AuthRequest, res: Response): Promise<void> =>
         return;
       }
     }
-    // Project-less files have no project to scope against — any
-    // authenticated user may view them.
 
+    // New uploads: filePath is a full Cloudinary URL — redirect straight to it.
+    if (record.filePath.startsWith('http')) {
+      res.redirect(record.filePath);
+      return;
+    }
+
+    // Old uploads (pre-Cloudinary): filePath is still a relative local path —
+    // keep serving these from disk so existing files don't break.
     const fullPath = path.join(UPLOAD_ROOT, record.filePath);
     if (!fs.existsSync(fullPath)) {
       sendNotFound(res, 'File missing on server');
       return;
     }
-
     res.setHeader('Content-Type', record.mimeType);
     res.setHeader('Content-Disposition', `inline; filename="${record.originalName}"`);
     res.sendFile(fullPath);
@@ -96,8 +101,6 @@ export const listUploads = async (req: AuthRequest, res: Response): Promise<void
 
     const where: Record<string, unknown> = {};
     if (allowedProjectIds) {
-      // PM sees: uploads on their assigned projects, PLUS project-less
-      // uploads (those belong to everyone, not scoped to any project).
       where.OR = [
         { projectId: { in: allowedProjectIds } },
         { projectId: null },
@@ -128,9 +131,6 @@ export const listUploads = async (req: AuthRequest, res: Response): Promise<void
   }
 };
 
-// Powers the Documents page's dynamic module filter chips — returns the
-// distinct set of modules that actually have at least one upload, scoped
-// to what this user can see. No hardcoded module list to maintain.
 export const getUploadModules = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const allowedProjectIds = await getUserProjectIds(req);
@@ -171,8 +171,13 @@ export const deleteUpload = async (req: AuthRequest, res: Response): Promise<voi
       }
     }
 
-    const fullPath = path.join(UPLOAD_ROOT, record.filePath);
-    fs.unlink(fullPath, () => {}); // best-effort — don't fail the request if the file's already gone
+    if (record.cloudinaryId) {
+      await deleteFromCloudinary(record.cloudinaryId, getCloudinaryResourceType(record.mimeType));
+    } else {
+      // Old local file — best-effort disk cleanup, same as before
+      const fullPath = path.join(UPLOAD_ROOT, record.filePath);
+      fs.unlink(fullPath, () => {});
+    }
 
     await prisma.upload.delete({ where: { id: req.params.id } });
     sendSuccess(res, null, 'File deleted successfully');
@@ -181,4 +186,3 @@ export const deleteUpload = async (req: AuthRequest, res: Response): Promise<voi
     sendError(res, 'Failed to delete file', 500);
   }
 };
-

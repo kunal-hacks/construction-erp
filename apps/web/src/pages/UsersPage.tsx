@@ -324,36 +324,33 @@ const UsersPage: React.FC = () => {
 
         {/* STEP 1: User details — role is fixed to Project Manager, not a choice */}
         {createStep === 'details' && (
-          <form onSubmit={handleSubmit(d => createMutation.mutate(d))} className="p-4 sm:p-6 space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <FormField label="First Name" required>
-                <input {...register('firstName', { required: true })} className="input" placeholder="Rajesh" />
-              </FormField>
-              <FormField label="Last Name" required>
-                <input {...register('lastName', { required: true })} className="input" placeholder="Kumar" />
-              </FormField>
-              <FormField label="Email" required className="sm:col-span-2">
-                <input {...register('email', { required: true })} type="email" className="input" placeholder="user@company.com" />
-              </FormField>
-              <FormField label="Password" required className="sm:col-span-2">
-                <input {...register('password', { required: true, minLength: 8 })} type="password" className="input" placeholder="Min 8 characters" />
-              </FormField>
-              <FormField label="Phone" className="sm:col-span-2">
-                <input {...register('phone')} className="input" placeholder="9876543210" />
-              </FormField>
-            </div>
-            <div className="text-xs text-blue-600 bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg flex items-start gap-2">
-              <HiOutlineFolderOpen className="w-4 h-4 flex-shrink-0 mt-0.5" />
-              This user will be created as a Project Manager. After creating them, you'll assign the project(s) they're responsible for.
-            </div>
-            <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-3">
-              <button type="button" onClick={closeCreateFlow} className="btn-secondary w-full sm:w-auto">Cancel</button>
-              <button type="submit" disabled={createMutation.isPending} className="btn-primary w-full sm:w-auto">
-                {createMutation.isPending ? 'Creating...' : 'Create Project Manager'}
-              </button>
-            </div>
-          </form>
-        )}
+  <form onSubmit={handleSubmit(d => createMutation.mutate(d))} className="p-4 sm:p-6 space-y-4">
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <FormField label="First Name" required>
+        <input {...register('firstName', { required: true })} className="input" placeholder="Rajesh" />
+      </FormField>
+      <FormField label="Last Name" required>
+        <input {...register('lastName', { required: true })} className="input" placeholder="Kumar" />
+      </FormField>
+      <FormField label="Email" required className="sm:col-span-2">
+        <input {...register('email', { required: true })} type="email" className="input" placeholder="user@company.com" />
+      </FormField>
+      <FormField label="Phone" className="sm:col-span-2">
+        <input {...register('phone')} className="input" placeholder="9876543210" />
+      </FormField>
+    </div>
+    <div className="text-xs text-blue-600 bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg flex items-start gap-2">
+      <HiOutlineFolderOpen className="w-4 h-4 flex-shrink-0 mt-0.5" />
+      This user will be created as a Project Manager. They'll receive an email to set their own password. After creating them, you'll assign the project(s) they're responsible for.
+    </div>
+    <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-3">
+      <button type="button" onClick={closeCreateFlow} className="btn-secondary w-full sm:w-auto">Cancel</button>
+      <button type="submit" disabled={createMutation.isPending} className="btn-primary w-full sm:w-auto">
+        {createMutation.isPending ? 'Creating...' : 'Create Project Manager'}
+      </button>
+    </div>
+  </form>
+)}
 
         {/* STEP 2: Assign Projects */}
         {createStep === 'assign-projects' && (

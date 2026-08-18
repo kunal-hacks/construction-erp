@@ -6,6 +6,8 @@ import { prisma } from '../config/database';
 import { sendSuccess, sendCreated, sendError, sendNotFound, sendPaginatedSuccess, getPagination } from '../utils/response';
 import { AuthRequest } from '../middleware/auth';
 import { logger } from '../utils/logger';
+import { sendUserInviteEmail } from '../utils/mailer';
+import { INVITE_EMAIL_AUDIT_ACTION } from '../middleware/rateLimiter';
 
 export const getUsers = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
@@ -31,14 +33,13 @@ export const getUsers = async (req: AuthRequest, res: Response): Promise<void> =
         select: {
           id: true, email: true, firstName: true, lastName: true,
           phone: true, role: true, isActive: true, avatar: true,
-          lastLogin: true, createdAt: true,   // schema: lastLogin (not lastLoginAt)
+          lastLogin: true, createdAt: true,
         },
         orderBy: { createdAt: 'desc' },
       }),
       prisma.user.count({ where }),
     ]);
 
-    // Normalize: frontend reads u.lastLoginAt
     const normalized = users.map((u) => ({ ...u, lastLoginAt: u.lastLogin }));
 
     sendPaginatedSuccess(res, normalized, total, page, pageSize);
@@ -73,9 +74,13 @@ export const getUserById = async (req: Request, res: Response): Promise<void> =>
   }
 };
 
+// Admin no longer sets the password directly. A random, unusable placeholder
+// is hashed and stored, a passwordResetToken is generated (same field the
+// forgot/reset-password flow already uses), and an invite email is sent so
+// the new user can set their own password via POST /auth/reset-password.
 export const createUser = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { email, password, firstName, lastName, phone, role } = req.body;
+    const { email, firstName, lastName, phone, role } = req.body;
 
     const existingUser = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
     if (existingUser) {
@@ -83,7 +88,11 @@ export const createUser = async (req: AuthRequest, res: Response): Promise<void>
       return;
     }
 
-    const hashedPassword = await bcrypt.hash(password, 12);
+    const placeholderPassword = randomUUID() + randomUUID();
+    const hashedPassword = await bcrypt.hash(placeholderPassword, 12);
+
+    const resetToken = randomUUID();
+    const resetExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h
 
     const user = await prisma.user.create({
       data: {
@@ -94,6 +103,8 @@ export const createUser = async (req: AuthRequest, res: Response): Promise<void>
         lastName,
         phone: phone || null,
         role: role as Role,
+        passwordResetToken: resetToken,
+        passwordResetExpires: resetExpires,
         updatedAt: new Date(),
       },
       select: {
@@ -102,7 +113,26 @@ export const createUser = async (req: AuthRequest, res: Response): Promise<void>
       },
     });
 
-    sendCreated(res, user, 'User created successfully');
+    try {
+      await sendUserInviteEmail({ to: user.email, firstName: user.firstName, resetToken });
+    } catch (mailError) {
+      // User is still created even if the email fails — don't roll back the
+      // account creation just because SMTP hiccuped.
+      logger.error('Failed to send user invite email:', mailError);
+    }
+
+    await prisma.auditLog.create({
+      data: {
+        id: randomUUID(),
+        action: INVITE_EMAIL_AUDIT_ACTION,
+        module: 'users',
+        entityId: user.id,
+        entityType: 'User',
+        userId: req.user!.id,
+      },
+    });
+
+    sendCreated(res, user, 'User created successfully. Invite email sent.');
   } catch (error) {
     logger.error('Create user error:', error);
     sendError(res, 'Failed to create user', 500);
@@ -145,7 +175,6 @@ export const updateUser = async (req: AuthRequest, res: Response): Promise<void>
 };
 
 export const deleteUser = async (req: AuthRequest, res: Response): Promise<void> => {
-  // Soft delete — deactivates the account, fully reversible.
   try {
     const user = await prisma.user.findUnique({ where: { id: req.params.id } });
     if (!user) { sendNotFound(res, 'User not found'); return; }
@@ -173,8 +202,6 @@ export const deleteUser = async (req: AuthRequest, res: Response): Promise<void>
 };
 
 export const hardDeleteUser = async (req: AuthRequest, res: Response): Promise<void> => {
-  // Permanent delete — clears every table that references this user, then
-  // removes the account. Safe to use freely on test/seed data.
   try {
     const user = await prisma.user.findUnique({ where: { id: req.params.id } });
     if (!user) { sendNotFound(res, 'User not found'); return; }
@@ -226,7 +253,6 @@ export const resetUserPassword = async (req: AuthRequest, res: Response): Promis
       data: { password: hashedPassword, updatedAt: new Date() },
     });
 
-    // Invalidate all refresh tokens
     await prisma.refreshToken.deleteMany({ where: { userId: req.params.id } });
 
     sendSuccess(res, null, 'Password reset successfully');
@@ -235,4 +261,3 @@ export const resetUserPassword = async (req: AuthRequest, res: Response): Promis
     sendError(res, 'Failed to reset password', 500);
   }
 };
-

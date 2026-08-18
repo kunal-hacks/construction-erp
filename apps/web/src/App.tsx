@@ -4,7 +4,7 @@ import { useAuthStore } from './store/authStore';
 
 const DashboardLayout = React.lazy(() => import('./components/layout/DashboardLayout'));
 const LoginPage = React.lazy(() => import('./pages/LoginPage'));
-
+const ResetPasswordPage = React.lazy(() => import('./pages/ResetPasswordPage'));
 const DashboardPage = React.lazy(() => import('./pages/DashboardPage'));
 const PMDashboardPage = React.lazy(() => import('./pages/PMDashboardPage'));
 const ProjectsPage = React.lazy(() => import('./pages/ProjectsPage'));
@@ -55,12 +55,14 @@ const App: React.FC = () => {
   return (
   <React.Suspense fallback={<div>Loading...</div>}>
     <Routes>
-      <Route
-        path="/login"
-        element={
-          isAuthenticated ? <Navigate to="/" replace /> : <LoginPage />
-        }
-      />
+    <Route
+  path="/login"
+  element={
+    isAuthenticated ? <Navigate to="/" replace /> : <LoginPage />
+  }
+/>
+
+<Route path="/set-password" element={<ResetPasswordPage />} />
 
       <Route
         path="/"
