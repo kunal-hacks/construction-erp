@@ -19,6 +19,8 @@ export const uploadFile = async (req: AuthRequest, res: Response): Promise<void>
       return;
     }
 
+    // Uploading still requires access to the project it belongs to — this
+    // is about WHO CAN CREATE, separate from who can later SEE it.
     if (projectId) {
       const allowedProjectIds = await getUserProjectIds(req);
       if (allowedProjectIds && !allowedProjectIds.includes(projectId)) {
@@ -66,12 +68,13 @@ export const getFile = async (req: AuthRequest, res: Response): Promise<void> =>
       return;
     }
 
-    if (record.projectId) {
-      const allowedProjectIds = await getUserProjectIds(req);
-      if (allowedProjectIds && !allowedProjectIds.includes(record.projectId)) {
-        sendError(res, 'You do not have access to this file', 403);
-        return;
-      }
+    // Admin: unrestricted access to every file, always.
+    // Non-admin: strictly their own uploads — not project-mates', not
+    // anyone else's, regardless of which project it's attached to.
+    const isAdmin = ADMIN_ROLES.includes(req.user!.role);
+    if (!isAdmin && record.uploadedBy !== req.user!.id) {
+      sendError(res, 'You do not have access to this file', 403);
+      return;
     }
 
     // New uploads: filePath is a full Cloudinary URL — redirect straight to it.
@@ -99,21 +102,19 @@ export const getFile = async (req: AuthRequest, res: Response): Promise<void> =>
 export const listUploads = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { projectId, module, category, relatedType, relatedId } = req.query;
-    const allowedProjectIds = await getUserProjectIds(req);
+    const isAdmin = ADMIN_ROLES.includes(req.user!.role);
 
     const where: Record<string, unknown> = {};
-    if (allowedProjectIds) {
-      where.OR = [
-        { projectId: { in: allowedProjectIds } },
-        { projectId: null },
-      ];
-      if (projectId) {
-        where.OR = allowedProjectIds.includes(projectId as string)
-          ? [{ projectId: projectId as string }]
-          : [{ projectId: '__none__' }];
-      }
-    } else if (projectId) {
-      where.projectId = projectId as string;
+
+    if (isAdmin) {
+      // Admin sees everything — full visibility, no ownership filter.
+      if (projectId) where.projectId = projectId as string;
+    } else {
+      // Non-admin: only their own uploads. Project/module/category are
+      // optional narrowing filters on top of that, never a way to see
+      // someone else's files.
+      where.uploadedBy = req.user!.id;
+      if (projectId) where.projectId = projectId as string;
     }
     if (module) where.module = module as string;
     if (category) where.category = category as string;
@@ -125,7 +126,9 @@ export const listUploads = async (req: AuthRequest, res: Response): Promise<void
       orderBy: { createdAt: 'desc' },
       include: {
         Project: { select: { id: true, name: true } },
-        User: { select: { id: true, firstName: true, lastName: true } },
+        // Admin uses this to see exactly who uploaded what and when
+        // (User + createdAt together give the full audit picture).
+        User: { select: { id: true, firstName: true, lastName: true, email: true } },
       },
     });
     sendSuccess(res, uploads);
@@ -137,11 +140,8 @@ export const listUploads = async (req: AuthRequest, res: Response): Promise<void
 
 export const getUploadModules = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const allowedProjectIds = await getUserProjectIds(req);
-    const where: Record<string, unknown> = {};
-    if (allowedProjectIds) {
-      where.OR = [{ projectId: { in: allowedProjectIds } }, { projectId: null }];
-    }
+    const isAdmin = ADMIN_ROLES.includes(req.user!.role);
+    const where: Record<string, unknown> = isAdmin ? {} : { uploadedBy: req.user!.id };
 
     const rows = await prisma.upload.findMany({
       where,
@@ -166,19 +166,17 @@ export const deleteUpload = async (req: AuthRequest, res: Response): Promise<voi
     const isAdmin = ADMIN_ROLES.includes(req.user!.role);
     const isOwner = record.uploadedBy === req.user!.id;
 
+    // Admin can delete anything. Everyone else can delete only what
+    // they themselves uploaded — project membership no longer grants
+    // delete rights over a project-mate's file.
     if (!isAdmin && !isOwner) {
-      const allowedProjectIds = await getUserProjectIds(req);
-      const hasProjectAccess = record.projectId && allowedProjectIds?.includes(record.projectId);
-      if (!hasProjectAccess) {
-        sendError(res, 'You do not have permission to delete this file', 403);
-        return;
-      }
+      sendError(res, 'You do not have permission to delete this file', 403);
+      return;
     }
 
     if (record.cloudinaryId) {
       await deleteFromCloudinary(record.cloudinaryId, getCloudinaryResourceType(record.mimeType));
     } else {
-      // Old local file — best-effort disk cleanup, same as before
       const fullPath = path.join(UPLOAD_ROOT, record.filePath);
       fs.unlink(fullPath, () => {});
     }

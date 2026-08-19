@@ -5,7 +5,7 @@ import { sendSuccess, sendCreated, sendError, sendNotFound, sendPaginatedSuccess
 import { AuthRequest } from '../middleware/auth';
 import * as path from 'path';
 import * as fs from 'fs';
-import { getUserProjectIds } from '../middleware/projectScope';
+import { ADMIN_ROLES } from '../middleware/projectScope';
 import { uploadBufferToCloudinary, deleteFromCloudinary, getCloudinaryResourceType } from '../utils/cloudinaryUpload';
 
 export const getDocuments = async (req: AuthRequest, res: Response): Promise<void> => {
@@ -13,16 +13,14 @@ export const getDocuments = async (req: AuthRequest, res: Response): Promise<voi
     const { page, pageSize, skip, take } = getPagination(req.query);
     const { projectId, type, search } = req.query;
 
-    const allowedProjectIds = await getUserProjectIds(req);
+    const isAdmin = ADMIN_ROLES.includes(req.user!.role);
 
     const where: Record<string, unknown> = {};
-    if (allowedProjectIds) {
-      where.projectId = projectId
-        ? (allowedProjectIds.includes(projectId as string) ? projectId as string : '__none__')
-        : { in: allowedProjectIds };
-    } else if (projectId) {
-      where.projectId = projectId as string;
+    if (!isAdmin) {
+      // Non-admin: strictly their own documents — not project-mates'.
+      where.uploadedBy = req.user!.id;
     }
+    if (projectId) where.projectId = projectId as string;
     if (type) where.category = type as string;
     if (search) where.name = { contains: search as string, mode: 'insensitive' };
 
@@ -30,7 +28,7 @@ export const getDocuments = async (req: AuthRequest, res: Response): Promise<voi
       prisma.document.findMany({
         where, skip, take,
         include: {
-          User: { select: { firstName: true, lastName: true } },
+          User: { select: { id: true, firstName: true, lastName: true, email: true } },
           Project: { select: { name: true } },
         },
         orderBy: { createdAt: 'desc' },
@@ -102,13 +100,19 @@ export const getDocumentUrl = async (req: AuthRequest, res: Response): Promise<v
     const doc = await prisma.document.findUnique({ where: { id: req.params.id } });
     if (!doc) { sendNotFound(res, 'Document not found'); return; }
 
-    // New docs: fileUrl is already a full Cloudinary URL.
+    // Same ownership rule as everything else: admin sees all, non-admin
+    // only their own — closes a gap this endpoint never checked before.
+    const isAdmin = ADMIN_ROLES.includes(req.user!.role);
+    if (!isAdmin && doc.uploadedBy !== req.user!.id) {
+      sendError(res, 'You do not have access to this document', 403);
+      return;
+    }
+
     if (doc.fileUrl.startsWith('http')) {
       sendSuccess(res, { url: doc.fileUrl, expiresIn: 3600 });
       return;
     }
 
-    // Old local docs — build full URL against this server, same as before.
     const baseUrl = `${req.protocol}://${req.get('host')}`;
     const url = `${baseUrl}${doc.fileUrl}`;
     sendSuccess(res, { url, expiresIn: 3600 });
@@ -122,10 +126,18 @@ export const deleteDocument = async (req: AuthRequest, res: Response): Promise<v
     const doc = await prisma.document.findUnique({ where: { id: req.params.id } });
     if (!doc) { sendNotFound(res, 'Document not found'); return; }
 
+    // Previously ANY authenticated user could delete ANY document — no
+    // check existed here at all. Now: admin can delete anything, everyone
+    // else only what they themselves uploaded.
+    const isAdmin = ADMIN_ROLES.includes(req.user!.role);
+    if (!isAdmin && doc.uploadedBy !== req.user!.id) {
+      sendError(res, 'You do not have permission to delete this document', 403);
+      return;
+    }
+
     if (doc.cloudinaryId) {
       await deleteFromCloudinary(doc.cloudinaryId, getCloudinaryResourceType(doc.fileType));
     } else if (doc.fileUrl.startsWith('/uploads/')) {
-      // Old local file — clean up from disk, same as before
       const filePath = path.join(process.cwd(), doc.fileUrl);
       if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
     }

@@ -1,7 +1,8 @@
 import { AuthRequest } from './auth';
 import { prisma } from '../config/database';
+import { Role } from '@prisma/client';
 
-export const ADMIN_ROLES = ['SUPER_ADMIN', 'ADMIN'];
+export const ADMIN_ROLES: Role[] = ['SUPER_ADMIN', 'ADMIN'];
 
 /**
  * Returns the list of project IDs the requesting user is allowed to see.
