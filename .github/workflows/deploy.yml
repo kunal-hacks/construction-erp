@@ -1,0 +1,114 @@
+name: Deploy Construction ERP
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy to VPS
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          key: ${{ secrets.SSH_KEY }}
+          port: 22
+          command_timeout: 15m
+
+          script: |
+            set -e
+
+            echo "================================"
+            echo "Starting Construction ERP Deploy"
+            echo "================================"
+
+            # Load NVM / Node 20
+            export NVM_DIR="/root/.nvm"
+
+            if [ -s "$NVM_DIR/nvm.sh" ]; then
+              source "$NVM_DIR/nvm.sh"
+            fi
+
+            nvm use 20.19.5
+
+            echo "Node version:"
+            node -v
+
+            echo "NPM version:"
+            npm -v
+
+            echo "PM2 version:"
+            pm2 -v
+
+            cd /var/www/construction-erp
+
+            echo "================================"
+            echo "Pulling latest code"
+            echo "================================"
+
+            git pull --ff-only origin main
+
+            echo "================================"
+            echo "Building Backend"
+            echo "================================"
+
+            cd apps/backend
+
+            npm install
+            npx prisma generate
+            npm run build
+
+            echo "Restarting backend..."
+
+            pm2 restart constructionerp-backend --update-env
+            pm2 save
+
+            echo "================================"
+            echo "Checking backend health"
+            echo "================================"
+
+            HEALTHY=false
+
+            for i in {1..15}; do
+              if curl --fail --silent http://127.0.0.1:4530/health; then
+                echo ""
+                echo "Backend is healthy ✅"
+                HEALTHY=true
+                break
+              fi
+
+              echo "Backend not ready yet... attempt $i/15"
+              sleep 2
+            done
+
+            if [ "$HEALTHY" != "true" ]; then
+              echo "Backend health check failed ❌"
+              pm2 status
+              pm2 logs constructionerp-backend --lines 50 --nostream
+              exit 1
+            fi
+
+            echo "================================"
+            echo "Building Frontend"
+            echo "================================"
+
+            cd ../web
+
+            npm install
+            npm run build
+
+            echo "================================"
+            echo "Checking Nginx"
+            echo "================================"
+
+            nginx -t
+
+            systemctl reload nginx
+
+            echo "================================"
+            echo "DEPLOYMENT SUCCESSFUL 🚀"
+            echo "================================"

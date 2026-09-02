@@ -23,7 +23,7 @@ export const generateRefreshToken = (payload: Omit<JWTPayload, 'iat' | 'exp'>): 
 
 export const verifyAccessToken = (token: string): JWTPayload => {
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as JWTPayload;
+    const decoded = jwt.verify(token, config.JWT_SECRET) as JWTPayload;
     return decoded;
   } catch (error) {
     throw new Error('Invalid or expired token'); // ✅ Must THROW, not return null/undefined
