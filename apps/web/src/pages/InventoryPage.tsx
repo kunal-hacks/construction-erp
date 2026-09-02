@@ -13,6 +13,59 @@ import {
   HiOutlineArrowUp, HiOutlineArrowsRightLeft, HiOutlineExclamationTriangle,
 } from 'react-icons/hi2';
 
+const UNIT_OPTIONS = ['Bags', 'MT', 'KG', 'CuM', 'Ltrs', 'Nos', 'RFT', 'SFT', 'RMT', 'Sheets', 'Sets'];
+
+// ── Isolated "+ Add Material" form — same real-time pattern as Vendors/Categories ──
+interface AddMaterialFormProps {
+  onClose: () => void;
+  onSuccess: (materialId: string) => void;
+}
+
+const AddMaterialForm: React.FC<AddMaterialFormProps> = ({ onClose, onSuccess }) => {
+  const qc = useQueryClient();
+  const { register, handleSubmit } = useForm();
+
+  const createMutation = useMutation({
+    mutationFn: (data: { name: string; unit: string; category?: string; description?: string }) =>
+      inventoryApi.createMaterial(data),
+    onSuccess: (res: any) => {
+      qc.invalidateQueries({ queryKey: ['materials'] });
+      toast.success('Material added!');
+      const id = res.data?.data?.id || res.data?.id;
+      onSuccess(id);
+      onClose();
+    },
+    onError: (e: any) => toast.error(formatError(e) || 'Failed to add material'),
+  });
+
+  return (
+    <form onSubmit={handleSubmit((d: any) => createMutation.mutate(d))} className="p-4 sm:p-6 space-y-4">
+      <FormField label="Material Name" required>
+        <input {...register('name', { required: true })} className="input" placeholder="e.g. Door Frame (Teak, 7x3ft)" />
+      </FormField>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <FormField label="Unit" required>
+          <select {...register('unit', { required: true })} className="select">
+            {UNIT_OPTIONS.map(u => <option key={u} value={u}>{u}</option>)}
+          </select>
+        </FormField>
+        <FormField label="Category">
+          <input {...register('category')} className="input" placeholder="e.g. Carpentry, Hardware" />
+        </FormField>
+      </div>
+      <FormField label="Description">
+        <input {...register('description')} className="input" placeholder="Optional description" />
+      </FormField>
+      <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-3">
+        <button type="button" onClick={onClose} className="btn-secondary w-full sm:w-auto">Cancel</button>
+        <button type="submit" disabled={createMutation.isPending} className="btn-primary w-full sm:w-auto">
+          {createMutation.isPending ? 'Adding...' : 'Add Material'}
+        </button>
+      </div>
+    </form>
+  );
+};
+
 const InventoryPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'inventory'|'movements'|'materials'>('inventory');
   const [projectId, setProjectId] = useState('');
@@ -20,6 +73,7 @@ const InventoryPage: React.FC = () => {
   const [page, setPage] = useState(1);
   const [showStockIn, setShowStockIn] = useState(false);
   const [showStockOut, setShowStockOut] = useState(false);
+  const [showAddMaterial, setShowAddMaterial] = useState<'in' | 'out' | null>(null);
   const qc = useQueryClient();
 
   const { data: projectsData } = useQuery({ queryKey: ['projects-select'], queryFn: () => projectsApi.list({ pageSize: 100 }) });
@@ -46,8 +100,8 @@ const InventoryPage: React.FC = () => {
   const movements = movementsData?.data?.data || [];
   const movMeta = movementsData?.data?.meta;
 
-  const { register: regIn, handleSubmit: handleIn, reset: resetIn } = useForm();
-  const { register: regOut, handleSubmit: handleOut, reset: resetOut } = useForm();
+  const { register: regIn, handleSubmit: handleIn, reset: resetIn, setValue: setValueIn } = useForm();
+  const { register: regOut, handleSubmit: handleOut, reset: resetOut, setValue: setValueOut } = useForm();
 
   const stockInMutation = useMutation({
     mutationFn: (d: object) => inventoryApi.stockIn(d),
@@ -311,7 +365,12 @@ const InventoryPage: React.FC = () => {
       {/* ══════════════ Materials Tab ══════════════ */}
       {activeTab === 'materials' && (
         <div className="space-y-3">
-          <SearchInput value={search} onChange={setSearch} placeholder="Search materials..." className="w-full sm:max-w-sm" />
+          <div className="flex flex-col sm:flex-row gap-3">
+            <SearchInput value={search} onChange={setSearch} placeholder="Search materials..." className="flex-1 sm:max-w-sm" />
+            <button onClick={() => setShowAddMaterial('in')} className="btn-secondary w-full sm:w-auto justify-center">
+              + Add Material
+            </button>
+          </div>
 
           {matsLoading ? <LoadingSpinner className="py-12" /> : (
             <>
@@ -373,12 +432,17 @@ const InventoryPage: React.FC = () => {
             </select>
           </FormField>
           <FormField label="Material" required>
-            <select {...regIn('materialId', { required: true })} className="select">
-              <option value="">Select Material</option>
-              {Array.isArray(materials) && materials.map((m: any) => (
-                <option key={m.id} value={m.id}>{m.name} ({m.unit})</option>
-              ))}
-            </select>
+            <div className="flex gap-2">
+              <select {...regIn('materialId', { required: true })} className="select flex-1">
+                <option value="">Select Material</option>
+                {Array.isArray(materials) && materials.map((m: any) => (
+                  <option key={m.id} value={m.id}>{m.name} ({m.unit})</option>
+                ))}
+              </select>
+              <button type="button" onClick={() => setShowAddMaterial('in')} className="btn-secondary px-3 text-sm whitespace-nowrap flex-shrink-0">
+                + Add
+              </button>
+            </div>
           </FormField>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <FormField label="Quantity" required>
@@ -418,12 +482,17 @@ const InventoryPage: React.FC = () => {
             </select>
           </FormField>
           <FormField label="Material" required>
-            <select {...regOut('materialId', { required: true })} className="select">
-              <option value="">Select Material</option>
-              {Array.isArray(materials) && materials.map((m: any) => (
-                <option key={m.id} value={m.id}>{m.name} ({m.unit})</option>
-              ))}
-            </select>
+            <div className="flex gap-2">
+              <select {...regOut('materialId', { required: true })} className="select flex-1">
+                <option value="">Select Material</option>
+                {Array.isArray(materials) && materials.map((m: any) => (
+                  <option key={m.id} value={m.id}>{m.name} ({m.unit})</option>
+                ))}
+              </select>
+              <button type="button" onClick={() => setShowAddMaterial('out')} className="btn-secondary px-3 text-sm whitespace-nowrap flex-shrink-0">
+                + Add
+              </button>
+            </div>
           </FormField>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <FormField label="Quantity" required>
@@ -443,6 +512,17 @@ const InventoryPage: React.FC = () => {
             </button>
           </div>
         </form>
+      </Modal>
+
+      {/* ── Add Material Modal — shared by Materials tab, Stock In and Stock Out ── */}
+      <Modal isOpen={!!showAddMaterial} onClose={() => setShowAddMaterial(null)} title="Add Material" size="md">
+        <AddMaterialForm
+          onClose={() => setShowAddMaterial(null)}
+          onSuccess={(materialId) => {
+            if (showAddMaterial === 'in') setValueIn('materialId', materialId);
+            if (showAddMaterial === 'out') setValueOut('materialId', materialId);
+          }}
+        />
       </Modal>
     </div>
   );

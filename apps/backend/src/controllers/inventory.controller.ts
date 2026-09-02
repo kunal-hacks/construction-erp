@@ -8,11 +8,12 @@ import { logger } from '../utils/logger';
 import { getUserProjectIds } from '../middleware/projectScope';
 
 // ── Materials ──────────────────────────────────────────────────────────────
-// Materials are a fixed, closed catalog seeded once (scripts/seedMaterials.ts)
-// and wired into Task Type calculations. There is intentionally no create
-// endpoint — adding a material that isn't wired into a calculation formula
-// creates clutter without any automatic benefit, so new materials are added
-// by a developer via the seed script, never through the UI.
+// The core catalog is seeded (scripts/seedMaterials.ts) and wired into Task
+// Type calculations — that part stays fixed. createMaterial exists as a
+// controlled escape hatch for real materials that will never have a
+// formula (door frames, window frames, hardware, etc.) — same duplicate-
+// name safety net used by Vendors/Categories elsewhere in the app, so this
+// doesn't regress into the earlier duplicate-material mess.
 
 export const getMaterials = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
@@ -39,11 +40,48 @@ export const getMaterials = async (req: AuthRequest, res: Response): Promise<voi
   }
 };
 
+// Controlled creation — checks for a case-insensitive name match first and
+// returns the existing row instead of erroring (same forgiving behavior as
+// Vendors/Categories), so re-typing "Door Frame" twice by accident never
+// produces two separate rows.
+export const createMaterial = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { name, unit, category, description } = req.body;
+
+    if (!name || !unit) {
+      sendError(res, 'name and unit are required', 400);
+      return;
+    }
+
+    const existing = await prisma.material.findFirst({
+      where: { name: { equals: name, mode: 'insensitive' } },
+    });
+    if (existing) {
+      sendSuccess(res, existing, 'Material already exists');
+      return;
+    }
+
+    const material = await prisma.material.create({
+      data: {
+        id: randomUUID(),
+        name,
+        unit,
+        category: category || 'Other',
+        description: description || null,
+      },
+    });
+
+    sendCreated(res, material, 'Material created successfully');
+  } catch (error) {
+    logger.error('Create material error:', error);
+    sendError(res, 'Failed to create material', 500);
+  }
+};
+
 // Kept, Super Admin only — this fixes a typo or corrects a unit mismatch on
 // an EXISTING material (e.g. if Cement was accidentally seeded as KG instead
-// of Bags). It cannot create a new material and does not change `name` in a
-// way that would let someone rename their way into a duplicate — name stays
-// locked to prevent that.
+// of Bags). Name stays locked here to prevent renaming-into-a-duplicate;
+// use createMaterial for anything genuinely new.
 export const updateMaterial = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const material = await prisma.material.findUnique({ where: { id: req.params.id } });
@@ -170,9 +208,6 @@ export const getAllInventory = async (req: AuthRequest, res: Response): Promise<
 };
 
 // ── Stock In ───────────────────────────────────────────────────────────────
-// Receiving stock IS a purchase — so every stock-in also creates a matching
-// Expense record automatically, in the same DB transaction, so the two can
-// never drift out of sync (both succeed or both fail together).
 
 export const stockIn = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
@@ -373,8 +408,6 @@ export const getStockMovements = async (req: AuthRequest, res: Response): Promis
 };
 
 // ── Categories (derived from Material.category string field) ──────────────
-// No create endpoint — categories exist only because a material has that
-// category value; the fixed material seed defines the complete category set.
 
 export const getMaterialCategories = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
@@ -394,4 +427,3 @@ export const getMaterialCategories = async (req: AuthRequest, res: Response): Pr
     sendError(res, 'Failed to fetch categories', 500);
   }
 };
-

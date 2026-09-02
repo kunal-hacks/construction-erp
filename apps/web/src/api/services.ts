@@ -67,10 +67,10 @@ export const dailyReportsApi = {
 // ==================== INVENTORY ====================
 export const inventoryApi = {
   getMaterials: (params?: object) => api.get('/inventory/materials', { params }),
-  createMaterial: (data: object) => api.post('/inventory/materials', data),
+  createMaterial: (data: { name: string; unit: string; category?: string; description?: string }) =>
+    api.post('/inventory/materials', data),
   updateMaterial: (id: string, data: object) => api.put(`/inventory/materials/${id}`, data),
   getCategories: () => api.get('/inventory/categories'),
-  createCategory: (data: object) => api.post('/inventory/categories', data),
   getAllInventory: (params?: object) => api.get('/inventory', { params }),
   getProjectInventory: (projectId: string, params?: object) => api.get(`/inventory/project/${projectId}`, { params }),
   stockIn: (data: object) => api.post('/inventory/stock-in', data),
