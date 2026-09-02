@@ -69,7 +69,7 @@ jobs:
 
             echo "Checking backend health..."
 
-            curl --fail http://127.0.0.1:4530/health
+            curl --fail http://127.0.0.1:3000/health
 
             echo "================================"
             echo "Building Frontend"
