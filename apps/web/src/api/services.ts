@@ -86,6 +86,7 @@ export const truckEntriesApi = {
   delete: (id: string) => api.delete(`/truck-entries/${id}`),
   getSummary: (params?: object) => api.get('/truck-entries/summary', { params }),
   transferToExpense: (data: { projectId: string; amount: number; date?: string }) => api.post('/truck-entries/transfer', data),
+  import: (entries) => api.post('/truck-entries/import', { entries }), // ← add this
 };
 
 // ==================== MACHINERY ====================
