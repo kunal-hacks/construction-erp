@@ -135,8 +135,10 @@ export const deleteDocument = async (req: AuthRequest, res: Response): Promise<v
       return;
     }
 
-    if (doc.cloudinaryId) {
-      await deleteFromCloudinary(doc.cloudinaryId, getCloudinaryResourceType(doc.fileType));
+    const cloudinaryId = (doc as typeof doc & { cloudinaryId?: string | null }).cloudinaryId;
+
+    if (cloudinaryId) {
+      await deleteFromCloudinary(cloudinaryId, getCloudinaryResourceType(doc.fileType));
     } else if (doc.fileUrl.startsWith('/uploads/')) {
       const filePath = path.join(process.cwd(), doc.fileUrl);
       if (fs.existsSync(filePath)) fs.unlinkSync(filePath);

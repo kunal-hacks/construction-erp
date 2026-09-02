@@ -174,8 +174,10 @@ export const deleteUpload = async (req: AuthRequest, res: Response): Promise<voi
       return;
     }
 
-    if (record.cloudinaryId) {
-      await deleteFromCloudinary(record.cloudinaryId, getCloudinaryResourceType(record.mimeType));
+    const cloudinaryId = (record as { cloudinaryId?: string | null }).cloudinaryId;
+
+    if (cloudinaryId) {
+      await deleteFromCloudinary(cloudinaryId, getCloudinaryResourceType(record.mimeType));
     } else {
       const fullPath = path.join(UPLOAD_ROOT, record.filePath);
       fs.unlink(fullPath, () => {});
