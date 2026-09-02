@@ -1,0 +1,69 @@
+name: Deploy Construction ERP
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy to VPS
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          key: ${{ secrets.SSH_KEY }}
+          port: 22
+
+          script: |
+            set -e
+
+            echo "================================"
+            echo "Starting Construction ERP Deploy"
+            echo "================================"
+
+            cd /var/www/construction-erp
+
+            echo "Pulling latest code..."
+            git pull --ff-only origin main
+
+            echo "================================"
+            echo "Building Backend"
+            echo "================================"
+
+            cd apps/backend
+
+            npm install
+            npx prisma generate
+            npm run build
+
+            echo "Restarting backend..."
+            pm2 restart constructionerp-backend --update-env
+            pm2 save
+
+            echo "Checking backend health..."
+            curl --fail http://127.0.0.1:4530/health
+
+            echo "================================"
+            echo "Building Frontend"
+            echo "================================"
+
+            cd ../web
+
+            npm install
+            npm run build
+
+            echo "================================"
+            echo "Checking Nginx"
+            echo "================================"
+
+            nginx -t
+
+            systemctl reload nginx
+
+            echo "================================"
+            echo "DEPLOYMENT SUCCESSFUL 🚀"
+            echo "================================"
